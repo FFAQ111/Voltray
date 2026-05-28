@@ -98,7 +98,7 @@ struct RewardVault has key {
 ### 3.1 `create_event`
 
 ```move
-public entry fun create_event(
+public fun create_event(
     reward_coin: Coin<SUI>,
     reward_per_unit: u64,
     target_reduction: u64,
@@ -117,7 +117,7 @@ public entry fun create_event(
 ### 3.2 `register_meter`
 
 ```move
-public entry fun register_meter(
+public fun register_meter(
     // TODO: initial meter params
     ctx: &mut TxContext,
 )
@@ -132,7 +132,7 @@ public entry fun register_meter(
 ### 3.3 `respond`
 
 ```move
-public entry fun respond(
+public fun respond(
     event: &DREvent,
     meter: &SmartMeter,
     clock: &Clock,
@@ -153,7 +153,7 @@ public entry fun respond(
 ### 3.4 `settle`
 
 ```move
-public entry fun settle(
+public fun settle(
     event: &mut DREvent,
     vault: &mut RewardVault,
     responder: address,
