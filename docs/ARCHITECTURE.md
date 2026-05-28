@@ -39,11 +39,12 @@ struct SmartMeter has key, store {
     id: UID,
     owner: address,
     label: String,  // hardware identifier; on-chain verification deferred (see §5)
-    // TODO: baseline_consumption, registered_at, ...
 }
 ```
 
 **Why Owned:** No consensus overhead, cheap reads/writes, single owner by nature.
+
+**No aggregate fields (e.g. `total_rewards_earned`, `response_count`).** `settle` is admin-only and cannot mutate the user's Owned `SmartMeter`. Aggregates are derived off-chain by scanning `Settled` events filtered on `responder == owner`. See §5.
 
 ---
 
@@ -134,6 +135,7 @@ public entry fun register_meter(
 public entry fun respond(
     event: &DREvent,
     meter: &SmartMeter,
+    clock: &Clock,
     ctx: &mut TxContext,
 )
 ```
@@ -141,7 +143,10 @@ public entry fun respond(
 - Caller: user
 - **Writes nothing to any Shared Object field.** Only emits an event.
 - Emits: `MeterResponded { event_id, meter_id, responder, timestamp }`
-- Checks: timestamp within `[start_time, end_time]`, `meter.owner == sender`
+- Checks:
+  - `meter.owner == ctx.sender()` (E_NOT_METER_OWNER)
+  - `clock.timestamp_ms()` within `[event.start_time, event.end_time]` (E_OUTSIDE_WINDOW)
+- `timestamp` in the emitted event is `clock.timestamp_ms()` — used by the oracle to dedupe and order responders for FCFS settlement.
 
 ---
 
@@ -152,6 +157,7 @@ public entry fun settle(
     event: &mut DREvent,
     vault: &mut RewardVault,
     responder: address,
+    meter_id: ID,         // for audit only; emitted into Settled event, not validated on-chain
     saved_units: u64,
     // MVP: admin-only — assert ctx.sender == event.utility
     // TODO(post-MVP): replace with oracle signature verification / multisig
@@ -159,9 +165,11 @@ public entry fun settle(
 )
 ```
 
-- Caller: **MVP — `event.utility` only** (admin-only oracle).
+- Caller: **MVP — `event.utility` only** (admin-only oracle). Asserts `ctx.sender() == event.utility` (E_NOT_UTILITY).
+- **Vault/event binding check (required):** `assert!(vault.event_id == object::id(event), E_WRONG_VAULT)` — without this, the utility could drain any vault by passing a mismatched pair.
 - Allocation: **first-come-first-served**. Pays `min(saved_units, event.remaining_units) × reward_per_unit` from `vault`, then decrements `event.remaining_units`. Late responders may get partial or nothing.
-- Emits: `Settled { event_id, responder, amount, units_paid }`
+- `meter_id` is passed in by the oracle (read from the `MeterResponded` event log) purely so it can be re-emitted in `Settled` for downstream audit / Dashboard joins. The contract does **not** look up the meter object — `settle` cannot touch the user's Owned `SmartMeter`.
+- Emits: `Settled { event_id, meter_id, responder, amount, units_paid }`
 - **TODO(post-MVP):** Verified oracle signatures, possibly Seal-encrypted consumption reports.
 
 ---
@@ -197,6 +205,7 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 | Reward allocation | First-come-first-served, capped by `remaining_units` | Pro-rata split, or auction-style bidding |
 | Meter hardware ID | Free-form `label: String`, no on-chain verification | Hardware-signed serials, TEE attestation, Seal-bound identity |
 | Vault topology | One `RewardVault` per `DREvent` (1:1) | Shared pool across events |
+| Reward aggregates (per-meter totals, response counts) | Not stored on-chain; derived in the frontend via `suix_queryEvents` filtered on `Settled` events | Off-chain indexer / Subgraph if RPC pagination becomes the bottleneck |
 
 ---
 

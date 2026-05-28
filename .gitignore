@@ -58,4 +58,4 @@ tmp/
 
 # ===== AI =====
 .claude/
-CLAUDE.md
+# CLAUDE.md is tracked — it carries project conventions for all contributors and future Claude sessions
