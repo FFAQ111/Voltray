@@ -49,7 +49,6 @@ SuiWatt/
 - **Document tradeoffs:** every "we chose X over Y for MVP" decision lives in **two places**:
   1. Inline `// TODO(post-MVP): <upgrade path>` comment in the code
   2. A row in `docs/ARCHITECTURE.md §5 MVP Decisions`
-- **Commit cadence:** suggest a commit (with a proposed conventional-commits message) at each stage boundary — doc skeleton complete, contract module compiles, page wired up, contract deployed, etc. Do not auto-commit.
 
 ---
 
