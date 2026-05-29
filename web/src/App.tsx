@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { ConnectButton } from "@mysten/dapp-kit";
+import { Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { EventSummary } from "./lib/suiwatt";
 import Dashboard from "./pages/Dashboard";
 import EventList from "./pages/EventList";
@@ -23,25 +25,40 @@ function App() {
     setView("detail");
   };
 
+  const navActive = (v: View) => v === view || (view === "detail" && v === "list");
+
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">⚡ SuiWatt</div>
-        <nav className="tabs">
-          {TABS.map((t) => (
-            <button
-              key={t.view}
-              className={view === t.view ? "tab active" : "tab"}
-              onClick={() => setView(t.view)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-        <ConnectButton />
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4">
+          <button
+            onClick={() => setView("dashboard")}
+            className="flex items-center gap-2"
+          >
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Zap className="size-5" />
+            </span>
+            <span className="text-lg font-semibold tracking-tight">SuiWatt</span>
+          </button>
+
+          <nav className="flex flex-1 items-center gap-1">
+            {TABS.map((t) => (
+              <Button
+                key={t.view}
+                variant={navActive(t.view) ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setView(t.view)}
+              >
+                {t.label}
+              </Button>
+            ))}
+          </nav>
+
+          <ConnectButton />
+        </div>
       </header>
 
-      <main className="content">
+      <main className="mx-auto max-w-5xl px-4 py-8">
         {view === "dashboard" && <Dashboard />}
         {view === "list" && <EventList onOpen={openDetail} />}
         {view === "create" && <CreateEvent onCreated={() => setView("list")} />}

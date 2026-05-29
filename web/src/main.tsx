@@ -7,8 +7,10 @@ import {
   createNetworkConfig,
 } from "@mysten/dapp-kit";
 import { getFullnodeUrl } from "@mysten/sui/client";
+import "@fontsource-variable/geist/index.css";
 import "@mysten/dapp-kit/dist/index.css";
 import App from "./App.tsx";
+import { Toaster } from "./components/ui/sonner";
 import "./index.css";
 
 const { networkConfig } = createNetworkConfig({
@@ -22,6 +24,7 @@ createRoot(document.getElementById("root")!).render(
       <SuiClientProvider networks={networkConfig} defaultNetwork="testnet">
         <WalletProvider autoConnect>
           <App />
+          <Toaster position="bottom-right" />
         </WalletProvider>
       </SuiClientProvider>
     </QueryClientProvider>

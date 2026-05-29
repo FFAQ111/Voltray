@@ -5,6 +5,25 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   buildRegisterMeter,
   buildRespond,
@@ -16,13 +35,13 @@ import {
   querySettled,
   type EventSummary,
 } from "../lib/suiwatt";
-import {
-  clearValidity,
-  formatTime,
-  onInvalidEn,
-  shortAddr,
-  windowStatus,
-} from "../lib/format";
+import { formatSui, formatTime, shortAddr, windowStatus } from "../lib/format";
+
+const STATUS_BADGE: Record<ReturnType<typeof windowStatus>, string> = {
+  active: "border-transparent bg-emerald-500/15 text-emerald-400",
+  upcoming: "border-transparent bg-blue-500/15 text-blue-400",
+  ended: "border-transparent bg-muted text-muted-foreground",
+};
 
 export default function EventDetail({
   event,
@@ -35,7 +54,6 @@ export default function EventDetail({
   const account = useCurrentAccount();
   const qc = useQueryClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
-  const [note, setNote] = useState<string | null>(null);
 
   const detail = useQuery({
     queryKey: ["event", event.eventId],
@@ -68,22 +86,23 @@ export default function EventDetail({
     });
 
   const run = (tx: ReturnType<typeof buildRespond>, ok: string) => {
-    setNote(null);
     signAndExecute(
       { transaction: tx },
       {
         onSuccess: () => {
-          setNote(ok);
+          toast.success(ok);
           refresh();
         },
-        onError: (e) => setNote(`Failed: ${e.message}`),
+        onError: (e) =>
+          toast.error("Transaction failed", { description: e.message }),
       },
     );
   };
 
-  if (detail.isLoading) return <p className="muted">Loading event…</p>;
+  if (detail.isLoading)
+    return <p className="text-muted-foreground">Loading event…</p>;
   if (detail.error || !detail.data)
-    return <p className="error">Failed to load event.</p>;
+    return <p className="text-destructive">Failed to load event.</p>;
 
   const ev = detail.data;
   const isUtility = account?.address === ev.utility;
@@ -93,38 +112,32 @@ export default function EventDetail({
   const settledList = settled.data ?? [];
 
   return (
-    <div className="stack">
-      <button className="tab" onClick={onBack}>
-        ← Back
-      </button>
-      <h2>Event {shortAddr(ev.id)}</h2>
+    <div className="space-y-6">
+      <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2">
+        <ArrowLeft className="size-4" /> Back to events
+      </Button>
 
-      <div className="card">
-        <div className="row">
-          <span className="muted">Status</span>
-          <span className={`badge ${status}`}>{status}</span>
-        </div>
-        <div className="row">
-          <span className="muted">Utility</span>
-          <span>{shortAddr(ev.utility)}</span>
-        </div>
-        <div className="row">
-          <span className="muted">Reward / unit</span>
-          <span>{ev.rewardPerUnit} MIST</span>
-        </div>
-        <div className="row">
-          <span className="muted">Remaining / target</span>
-          <span>
-            {ev.remainingUnits} / {ev.targetReduction}
-          </span>
-        </div>
-        <div className="row">
-          <span className="muted">Window</span>
-          <span>
-            {formatTime(ev.startTime)} → {formatTime(ev.endTime)}
-          </span>
-        </div>
+      <div className="flex items-center gap-3">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Event {shortAddr(ev.id)}
+        </h2>
+        <Badge className={STATUS_BADGE[status]}>{status}</Badge>
       </div>
+
+      <Card>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Row label="Utility" value={shortAddr(ev.utility)} mono />
+          <Row label="Reward / unit" value={formatSui(ev.rewardPerUnit)} />
+          <Row
+            label="Remaining / target"
+            value={`${ev.remainingUnits} / ${ev.targetReduction} kWh`}
+          />
+          <Row
+            label="Window"
+            value={`${formatTime(ev.startTime)} → ${formatTime(ev.endTime)}`}
+          />
+        </CardContent>
+      </Card>
 
       {/* User actions — shown for any connected account so a single wallet can
           run the full create → register → respond → settle loop in a demo. */}
@@ -138,7 +151,9 @@ export default function EventDetail({
             )
           }
           disabled={isPending}
-          onRegister={(label) => run(buildRegisterMeter(label), "Meter registered.")}
+          onRegister={(label) =>
+            run(buildRegisterMeter(label), "Meter registered.")
+          }
           onRespond={(meterId) =>
             run(buildRespond(ev.id, meterId), "Response submitted.")
           }
@@ -166,36 +181,71 @@ export default function EventDetail({
         />
       )}
 
-      {note && <p className="muted">{note}</p>}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Responses ({respondedList.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {respondedList.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No responses yet.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {respondedList.map((r, i) => (
+                  <li key={i} className="flex items-center justify-between">
+                    <span className="font-mono">{shortAddr(r.responder)}</span>
+                    <span className="text-muted-foreground">
+                      {formatTime(r.timestamp)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
 
-      <section className="stack">
-        <h3>Responses ({respondedList.length})</h3>
-        {respondedList.length === 0 ? (
-          <p className="muted">No responses yet.</p>
-        ) : (
-          <ul className="list">
-            {respondedList.map((r, i) => (
-              <li key={i}>
-                {shortAddr(r.responder)} · meter {shortAddr(r.meterId)} ·{" "}
-                {formatTime(r.timestamp)}
-              </li>
-            ))}
-          </ul>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Settlements ({settledList.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {settledList.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No payouts yet.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {settledList.map((s, i) => (
+                  <li key={i} className="flex items-center justify-between">
+                    <span className="font-mono">{shortAddr(s.responder)}</span>
+                    <span>
+                      {s.unitsPaid} kWh ·{" "}
+                      <span className="text-emerald-400">
+                        {formatSui(s.amount)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
-        <h3>Settlements ({settledList.length})</h3>
-        {settledList.length === 0 ? (
-          <p className="muted">No payouts yet.</p>
-        ) : (
-          <ul className="list">
-            {settledList.map((s, i) => (
-              <li key={i}>
-                {shortAddr(s.responder)} · {s.unitsPaid} units · {s.amount} MIST
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={mono ? "font-mono" : undefined}>{value}</span>
     </div>
   );
 }
@@ -216,51 +266,62 @@ function RespondPanel({
   onRespond: (meterId: string) => void;
 }) {
   const [label, setLabel] = useState("");
-  const [meterId, setMeterId] = useState(meters[0]?.id ?? "");
+  const [meterId, setMeterId] = useState("");
   const selected = meterId || meters[0]?.id || "";
   const done = selected ? alreadyResponded(selected) : false;
 
   return (
-    <div className="card stack">
-      <h3>Respond</h3>
-      {meters.length === 0 ? (
-        <div className="row">
-          <input
-            placeholder="Meter label, e.g. home-1"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
-          <button
-            className="primary"
-            disabled={disabled || !label}
-            onClick={() => onRegister(label)}
-          >
-            Register meter
-          </button>
-        </div>
-      ) : (
-        <div className="row">
-          <select value={selected} onChange={(e) => setMeterId(e.target.value)}>
-            {meters.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label} ({shortAddr(m.id)})
-              </option>
-            ))}
-          </select>
-          <button
-            className="primary"
-            disabled={disabled || status !== "active" || done}
-            onClick={() => onRespond(selected)}
-          >
-            {done
-              ? "Already responded"
-              : status !== "active"
-                ? `Window ${status}`
-                : "Respond"}
-          </button>
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Respond</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {meters.length === 0 ? (
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Input
+              placeholder="Meter label, e.g. home-1"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+            <Button disabled={disabled || !label} onClick={() => onRegister(label)}>
+              Register meter
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Select
+              value={selected}
+              onValueChange={(v) => v && setMeterId(v)}
+              items={meters.map((m) => ({
+                value: m.id,
+                label: `${m.label} (${shortAddr(m.id)})`,
+              }))}
+            >
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder="Select a meter" />
+              </SelectTrigger>
+              <SelectContent>
+                {meters.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label} ({shortAddr(m.id)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              disabled={disabled || status !== "active" || done}
+              onClick={() => onRespond(selected)}
+            >
+              {done
+                ? "Already responded"
+                : status !== "active"
+                  ? `Window ${status}`
+                  : "Respond"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -278,42 +339,54 @@ function SettlePanel({
   const [units, setUnits] = useState<Record<string, number>>({});
 
   return (
-    <div className="card stack">
-      <h3>Settle (utility / oracle)</h3>
-      {responders.length === 0 ? (
-        <p className="muted">No responders to settle.</p>
-      ) : (
-        <ul className="list">
-          {responders.map((r, i) => {
-            const paid = settled.some((s) => s.responder === r.responder);
-            return (
-              <li key={i} className="row">
-                <span>{shortAddr(r.responder)}</span>
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="saved units"
-                  value={units[r.responder] ?? ""}
-                  onInvalid={onInvalidEn}
-                  onChange={(e) => {
-                    clearValidity(e);
-                    setUnits({ ...units, [r.responder]: Number(e.target.value) });
-                  }}
-                />
-                <button
-                  className="primary"
-                  disabled={disabled || paid || !units[r.responder]}
-                  onClick={() =>
-                    onSettle(r.responder, r.meterId, units[r.responder])
-                  }
-                >
-                  {paid ? "Settled" : "Settle"}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Settle (utility / oracle)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {responders.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No responders to settle.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {responders.map((r, i) => {
+              const paid = settled.some((s) => s.responder === r.responder);
+              return (
+                <li key={i}>
+                  {i > 0 && <Separator className="mb-3" />}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <span className="flex-1 font-mono text-sm">
+                      {shortAddr(r.responder)}
+                    </span>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="saved kWh"
+                      className="sm:w-32"
+                      value={units[r.responder] ?? ""}
+                      onChange={(e) =>
+                        setUnits({
+                          ...units,
+                          [r.responder]: Number(e.target.value),
+                        })
+                      }
+                    />
+                    <Button
+                      disabled={disabled || paid || !units[r.responder]}
+                      onClick={() =>
+                        onSettle(r.responder, r.meterId, units[r.responder])
+                      }
+                    >
+                      {paid ? "Settled" : "Settle"}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }

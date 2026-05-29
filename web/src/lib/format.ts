@@ -5,11 +5,9 @@ export const shortAddr = (a: string) =>
 export const formatTime = (ms: number) =>
   new Date(ms).toLocaleString("en-US");
 
-// Override the browser-native (locale-dependent) constraint message with English.
-export const onInvalidEn = (e: { currentTarget: HTMLInputElement }) =>
-  e.currentTarget.setCustomValidity("Value must be greater than or equal to 1.");
-export const clearValidity = (e: { currentTarget: HTMLInputElement }) =>
-  e.currentTarget.setCustomValidity("");
+// 1 SUI = 1e9 MIST. Compact human-readable amount for display only.
+export const formatSui = (mist: number) =>
+  `${(mist / 1e9).toLocaleString("en-US", { maximumFractionDigits: 4 })} SUI`;
 
 // DR window status relative to now.
 export function windowStatus(start: number, end: number): "upcoming" | "active" | "ended" {
