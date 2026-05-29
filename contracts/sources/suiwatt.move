@@ -38,6 +38,7 @@ public struct DREvent has key {
 }
 
 // TODO(post-MVP): consider a shared reward pool across events instead of one vault per event.
+// TODO(post-MVP): generic Coin<T> (e.g. USDC) so the per-kWh reward price is stable, not SUI-volatile (see docs/ARCHITECTURE.md §1.1).
 public struct RewardVault has key {
     id: UID,
     event_id: ID,

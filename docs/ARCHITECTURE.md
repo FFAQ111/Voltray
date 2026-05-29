@@ -26,6 +26,19 @@ User ──respond──▶ emit MeterResponded event
 Oracle ──settle──▶ scan event log → pay out from RewardVault
 ```
 
+### 1.1 Economic model
+
+SuiWatt is a **pay-per-reduction bounty with a capped pool** — the same shape as a real-world DR capacity payment.
+
+- **1 unit = 1 kWh of consumption reduced below the user's baseline.** This is the physical meaning of a "unit" everywhere in the contract.
+- **`reward_per_unit`** — the price (in MIST) the utility offers per kWh saved.
+- **`target_reduction`** — the total kWh the utility wants shaved across *all* participants in this event.
+- **Vault = `reward_per_unit × target_reduction`** — pre-funded to cover the worst case (everyone hits target), so the contract never promises money it cannot pay. Settlement draws down `remaining_units` first-come-first-served until the pool is exhausted.
+
+**Why pay in SUI for MVP (and the volatility caveat).** Rewards are denominated in native SUI/MIST because it needs zero extra setup to demo. The honest weakness: SUI's price floats, so a fixed `reward_per_unit` is an unstable real-world incentive. The clean fix is to denominate rewards in a stablecoin (USDC on Sui) — see §5. That is a post-MVP change, not a demo blocker.
+
+**Reward sizing is the oracle's input, not an on-chain model.** `saved_units` is supplied at `settle` time by the trusted utility/oracle. A production system would derive it from a baseline-vs-actual measurement & verification (M&V) pipeline; that pipeline is explicitly out of MVP scope (§7).
+
 ---
 
 ## 2. Object Schema
@@ -206,6 +219,7 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 | Reward allocation | First-come-first-served, capped by `remaining_units` | Pro-rata split, or auction-style bidding |
 | Meter hardware ID | Free-form `label: String`, no on-chain verification | Hardware-signed serials, TEE attestation, Seal-bound identity |
 | Vault topology | One `RewardVault` per `DREvent` (1:1) | Shared pool across events |
+| Reward denomination | Native SUI (`Balance<SUI>`) — zero setup to demo, but price-volatile | Generic `Coin<T>` / USDC-pegged rewards so the per-kWh price is stable (see §1.1) |
 | Reward aggregates (per-meter totals, response counts) | Not stored on-chain; derived in the frontend via `suix_queryEvents` filtered on `Settled` events | Off-chain indexer / Subgraph if RPC pagination becomes the bottleneck |
 | Double-response dedup | On-chain: a dynamic field keyed by `event_id` on the Owned `SmartMeter` (E_ALREADY_RESPONDED). Lives on the meter, not the shared `DREvent`, so it adds no shared-lock contention | Move the set off-chain only if meter storage cost ever matters; otherwise on-chain is the source of truth |
 
