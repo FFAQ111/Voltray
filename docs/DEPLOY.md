@@ -5,15 +5,17 @@
 | Field | Value |
 |---|---|
 | Network | **Sui Testnet** |
-| Package ID | `0x462c3621667480fe1085edee11da162fbb55951f31b6f44e8f71f71379080d36` |
-| UpgradeCap ID | `0xfac98866a42735e3030d1287e7f9213f5c9492f8249f4121434ccfc01fa51da8` |
+| Package ID | `0x1c34bd5411ea26efc74e9526bbdb727a3bdd0c0fde8eb60582b77a24af92585f` |
+| UpgradeCap ID | `0x837f7388fc7806a0ca42c8b3b11ea0e1222ea95bd44a33d5a4338b170983cb71` |
 | Publisher | `0x45f4536afa601c9800ede4e0132eaa35bafaf2d4a5cb7aed51342c7efaf5e61d` |
-| First publish tx | `3xqwcRdp4a6veH1SDyRAKnvCNfpkgk3wE25xTmPVzPVZ` |
-| First publish date | 2026-05-29 |
+| Publish tx | `8Tyjf2vZZAzLqWVPFgSU2i3P8yCdhmz7zj4BpkcMLHoH` |
+| Publish date | 2026-05-29 |
 
-Explorer: https://suiscan.xyz/testnet/object/0x462c3621667480fe1085edee11da162fbb55951f31b6f44e8f71f71379080d36
+Explorer: https://suiscan.xyz/testnet/object/0x1c34bd5411ea26efc74e9526bbdb727a3bdd0c0fde8eb60582b77a24af92585f
 
-The package is `Immutable`. The `UpgradeCap` is owned by the publisher address and is required for any future `sui client upgrade` call.
+The `UpgradeCap` is owned by the publisher address and is required for any future `sui client upgrade` call.
+
+> **Superseded:** the first publish (`0x462c36…080d36`) predates on-chain double-response dedup. The `respond` signature changed (`&SmartMeter` → `&mut SmartMeter`), which is not an upgrade-compatible change, so this was a fresh publish with a new Package ID. Use the ID above.
 
 ## Re-publishing (creates a brand-new package, new ID)
 

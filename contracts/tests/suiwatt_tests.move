@@ -39,11 +39,11 @@ fun full_lifecycle_pays_responder() {
     scenario.next_tx(USER);
     {
         let event = scenario.take_shared<DREvent>();
-        let meter = scenario.take_from_sender<SmartMeter>();
+        let mut meter = scenario.take_from_sender<SmartMeter>();
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(2_000);
 
-        suiwatt::respond(&event, &meter, &clock, scenario.ctx());
+        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         scenario.return_to_sender(meter);
@@ -178,14 +178,14 @@ fun respond_rejects_non_owner() {
 
     // A different address tries to respond with USER's meter.
     scenario.next_tx(USER);
-    let meter = scenario.take_from_sender<SmartMeter>();
+    let mut meter = scenario.take_from_sender<SmartMeter>();
     scenario.next_tx(@0xCAFE);
     {
         let event = scenario.take_shared<DREvent>();
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(2_000);
 
-        suiwatt::respond(&event, &meter, &clock, scenario.ctx());
+        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         ts::return_shared(event);
@@ -212,11 +212,44 @@ fun respond_rejects_outside_window() {
     scenario.next_tx(USER);
     {
         let event = scenario.take_shared<DREvent>();
-        let meter = scenario.take_from_sender<SmartMeter>();
+        let mut meter = scenario.take_from_sender<SmartMeter>();
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(END + 1); // past the window
 
-        suiwatt::respond(&event, &meter, &clock, scenario.ctx());
+        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+
+        clock.destroy_for_testing();
+        scenario.return_to_sender(meter);
+        ts::return_shared(event);
+    };
+
+    scenario.end();
+}
+
+// The same meter cannot respond twice to the same event (on-chain dedup on the meter).
+#[test, expected_failure(abort_code = suiwatt::E_ALREADY_RESPONDED)]
+fun respond_rejects_double_response() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+    };
+
+    scenario.next_tx(USER);
+    {
+        suiwatt::register_meter(b"meter-1".to_string(), scenario.ctx());
+    };
+
+    scenario.next_tx(USER);
+    {
+        let event = scenario.take_shared<DREvent>();
+        let mut meter = scenario.take_from_sender<SmartMeter>();
+        let mut clock = clock::create_for_testing(scenario.ctx());
+        clock.set_for_testing(2_000);
+
+        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+        // Second response to the same event aborts.
+        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         scenario.return_to_sender(meter);

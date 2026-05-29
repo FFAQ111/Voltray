@@ -134,19 +134,20 @@ public fun register_meter(
 ```move
 public fun respond(
     event: &DREvent,
-    meter: &SmartMeter,
+    meter: &mut SmartMeter,
     clock: &Clock,
     ctx: &mut TxContext,
 )
 ```
 
 - Caller: user
-- **Writes nothing to any Shared Object field.** Only emits an event.
+- **Writes nothing to any Shared Object field.** Only emits an event and records dedup state on the caller's own meter.
 - Emits: `MeterResponded { event_id, meter_id, responder, timestamp }`
 - Checks:
   - `meter.owner == ctx.sender()` (E_NOT_METER_OWNER)
   - `clock.timestamp_ms()` within `[event.start_time, event.end_time]` (E_OUTSIDE_WINDOW)
-- `timestamp` in the emitted event is `clock.timestamp_ms()` — used by the oracle to dedupe and order responders for FCFS settlement.
+  - Not already responded: a dynamic field keyed by `event_id` on the **Owned** `SmartMeter` (E_ALREADY_RESPONDED). Owned-object writes do not contend on a shared lock, so `event` stays `&DREvent` and per-event single-response is enforced on-chain without violating the no-accumulating-state-in-shared-objects rule.
+- `timestamp` in the emitted event is `clock.timestamp_ms()` — used by the oracle to order responders for FCFS settlement.
 
 ---
 
@@ -206,14 +207,15 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 | Meter hardware ID | Free-form `label: String`, no on-chain verification | Hardware-signed serials, TEE attestation, Seal-bound identity |
 | Vault topology | One `RewardVault` per `DREvent` (1:1) | Shared pool across events |
 | Reward aggregates (per-meter totals, response counts) | Not stored on-chain; derived in the frontend via `suix_queryEvents` filtered on `Settled` events | Off-chain indexer / Subgraph if RPC pagination becomes the bottleneck |
+| Double-response dedup | On-chain: a dynamic field keyed by `event_id` on the Owned `SmartMeter` (E_ALREADY_RESPONDED). Lives on the meter, not the shared `DREvent`, so it adds no shared-lock contention | Move the set off-chain only if meter storage cost ever matters; otherwise on-chain is the source of truth |
 
 ---
 
 ## 6. Open Questions
 
-- [ ] Can a user `respond` multiple times to the same event? MVP plan: off-chain dedup when the oracle scans the event log before calling `settle`.
-- [ ] Provide a PTB example bundling `create_event` + fund vault + share into one transaction? (Likely low-cost, high-demo-value — revisit after contracts compile.)
-- [ ] Frontend page count: MVP is Dashboard + Event List + Create + Detail (4 pages) — keep all, or drop Dashboard?
+- [x] Can a user `respond` multiple times to the same event? **Resolved: no — enforced on-chain** via a per-`event_id` dynamic field on the Owned `SmartMeter` (E_ALREADY_RESPONDED). On-chain is the single source of truth; the frontend only disables the button for UX.
+- [x] Provide a PTB example bundling `create_event` + fund vault + share into one transaction? **Resolved: yes** — the frontend `create_event` flow is a single PTB (split gas coin → `create_event`), demonstrating Sui transaction composability.
+- [x] Frontend page count: **Resolved: keep all 4** (Dashboard + Event List + Create + Detail). Dashboard ships in a reduced form (user-view summary) rather than being dropped, to preserve the user perspective in the demo.
 
 ---
 

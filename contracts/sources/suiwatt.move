@@ -6,6 +6,7 @@ use std::string::String;
 use sui::balance::{Self, Balance};
 use sui::clock::Clock;
 use sui::coin::{Self, Coin};
+use sui::dynamic_field as df;
 use sui::event::emit;
 use sui::sui::SUI;
 
@@ -15,6 +16,7 @@ const E_NOT_UTILITY: u64 = 0;
 const E_NOT_METER_OWNER: u64 = 1;
 const E_OUTSIDE_WINDOW: u64 = 2;
 const E_WRONG_VAULT: u64 = 3;
+const E_ALREADY_RESPONDED: u64 = 4;
 
 // ===== Objects =====
 
@@ -120,7 +122,7 @@ public fun register_meter(label: String, ctx: &mut TxContext) {
 
 public fun respond(
     event: &DREvent,
-    meter: &SmartMeter,
+    meter: &mut SmartMeter,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
@@ -130,8 +132,16 @@ public fun respond(
     let ts = clock.timestamp_ms();
     assert!(ts >= event.start_time && ts <= event.end_time, E_OUTSIDE_WINDOW);
 
+    // On-chain dedup lives on the Owned SmartMeter, keyed by event id — never on the
+    // Shared DREvent (see docs/ARCHITECTURE.md critical rule). Owned-object writes do not
+    // contend on a shared lock, so per-event single-response is enforced without losing
+    // the parallelism that keeps `event: &DREvent` an immutable borrow.
+    let event_id = object::id(event);
+    assert!(!df::exists_with_type<ID, bool>(&meter.id, event_id), E_ALREADY_RESPONDED);
+    df::add(&mut meter.id, event_id, true);
+
     emit(MeterResponded {
-        event_id: object::id(event),
+        event_id,
         meter_id: object::id(meter),
         responder,
         timestamp: ts,
