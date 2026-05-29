@@ -16,7 +16,13 @@ import {
   querySettled,
   type EventSummary,
 } from "../lib/suiwatt";
-import { formatTime, shortAddr, windowStatus } from "../lib/format";
+import {
+  clearValidity,
+  formatTime,
+  onInvalidEn,
+  shortAddr,
+  windowStatus,
+} from "../lib/format";
 
 export default function EventDetail({
   event,
@@ -120,8 +126,9 @@ export default function EventDetail({
         </div>
       </div>
 
-      {/* User actions */}
-      {!isUtility && account && (
+      {/* User actions — shown for any connected account so a single wallet can
+          run the full create → register → respond → settle loop in a demo. */}
+      {account && (
         <RespondPanel
           status={status}
           meters={myMeters}
@@ -287,9 +294,11 @@ function SettlePanel({
                   min={1}
                   placeholder="saved units"
                   value={units[r.responder] ?? ""}
-                  onChange={(e) =>
-                    setUnits({ ...units, [r.responder]: Number(e.target.value) })
-                  }
+                  onInvalid={onInvalidEn}
+                  onChange={(e) => {
+                    clearValidity(e);
+                    setUnits({ ...units, [r.responder]: Number(e.target.value) });
+                  }}
                 />
                 <button
                   className="primary"

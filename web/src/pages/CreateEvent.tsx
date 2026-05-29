@@ -4,6 +4,7 @@ import {
   useSignAndExecuteTransaction,
 } from "@mysten/dapp-kit";
 import { buildCreateEvent } from "../lib/suiwatt";
+import { clearValidity, onInvalidEn } from "../lib/format";
 
 export default function CreateEvent({ onCreated }: { onCreated: () => void }) {
   const account = useCurrentAccount();
@@ -52,7 +53,11 @@ export default function CreateEvent({ onCreated }: { onCreated: () => void }) {
           type="number"
           min={1}
           value={rewardPerUnit}
-          onChange={(e) => setRewardPerUnit(Number(e.target.value))}
+          onInvalid={onInvalidEn}
+          onChange={(e) => {
+            clearValidity(e);
+            setRewardPerUnit(Number(e.target.value));
+          }}
         />
       </label>
 
@@ -62,7 +67,11 @@ export default function CreateEvent({ onCreated }: { onCreated: () => void }) {
           type="number"
           min={1}
           value={targetReduction}
-          onChange={(e) => setTargetReduction(Number(e.target.value))}
+          onInvalid={onInvalidEn}
+          onChange={(e) => {
+            clearValidity(e);
+            setTargetReduction(Number(e.target.value));
+          }}
         />
       </label>
 
@@ -72,7 +81,11 @@ export default function CreateEvent({ onCreated }: { onCreated: () => void }) {
           type="number"
           min={1}
           value={durationMin}
-          onChange={(e) => setDurationMin(Number(e.target.value))}
+          onInvalid={onInvalidEn}
+          onChange={(e) => {
+            clearValidity(e);
+            setDurationMin(Number(e.target.value));
+          }}
         />
       </label>
 
