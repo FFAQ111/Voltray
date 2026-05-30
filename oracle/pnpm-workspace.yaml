@@ -1,0 +1,5 @@
+# Single-package config home for pnpm 11 (no `packages:` key = not a multi-package workspace).
+# Whitelists esbuild's build script (pulled in by tsx) so install does not fail with
+# ERR_PNPM_IGNORED_BUILDS and the pre-script deps check passes.
+allowBuilds:
+  esbuild: true
