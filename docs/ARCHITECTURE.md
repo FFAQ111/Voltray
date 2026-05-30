@@ -239,3 +239,25 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 - Full oracle network (single simulated server for MVP)
 - Cross-event reputation system
 - Marketing landing page
+
+---
+
+## 8. Off-chain oracle
+
+`settle` takes `saved_units` as an input (see §1.1 and §3.4). The `oracle/` package produces that number and submits the transaction. It is a small TypeScript program that runs against the deployed package. It is not a network, and for the MVP it is trusted: it holds the utility's key (§5, oracle trust row).
+
+### 8.1 Settlement flow
+
+1. **Read pledges.** Scan `MeterResponded` for the event to get the `(responder, meter_id)` pairs that committed on-chain.
+2. **Read session evidence.** Load metered charging sessions. For the MVP they come from `oracle/src/simulator.ts`, which stands in for a charge point operator's OCPP backend. Each session carries the energy delivered and the window it ran in.
+3. **Verify, then settle.** Pay a session only if it matches an on-chain pledge and ran off-peak, meaning inside `[start_time, end_time]`. `saved_units` is the session's kWh. Pairs already in the `Settled` log are skipped, so a run is idempotent and safe to repeat.
+
+### 8.2 Why tie payout to a session
+
+§1.1 leaves an honest gap: where does `saved_units` come from? Reading it from a metered session makes it verifiable instead of hand-entered. EV charging is what keeps the measurement clean. A charging session is a single load over a known window, so there is no counterfactual whole-home baseline to estimate.
+
+### 8.3 MVP boundaries
+
+- The oracle signs `settle` as the utility because it holds that key. Post-MVP: oracle signatures or a multisig (§5).
+- Session data is simulated. Post-MVP: a real OCPP 1.6 / 2.0.1 feed from a charger or a CPO API. This is the one change a mainnet pilot needs.
+- The simulator writes a driver's Sui address into each session. A real CPO would resolve that from its own account-to-wallet mapping.

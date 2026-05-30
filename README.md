@@ -29,6 +29,28 @@ A unit is one kWh saved below the user's baseline. The utility sets a price per 
 
 Rewards are paid in SUI for now because that needs no extra setup to demo. The honest weakness is that SUI's price floats, so a fixed price per kWh is not a stable incentive in the real world. The planned fix is to denominate rewards in USDC. See [ARCHITECTURE §1.1](docs/ARCHITECTURE.md#11-economic-model).
 
+## Oracle
+
+`settle` pays each user for the kWh they saved, so something has to produce that number and send the transaction. The `oracle/` package does it, and it runs against the deployed contract.
+
+It works in three steps:
+
+1. Read the `MeterResponded` log to find who pledged to an event.
+2. Read each meter's charging sessions. For the MVP these come from a simulator that stands in for a charge point operator's OCPP feed.
+3. Call `settle` for every user who both pledged and actually charged off-peak, inside the event window.
+
+The payout number is checked against session evidence instead of being typed in by hand. EV charging is what keeps that evidence clean: one metered session over a known window, rather than a guess at a whole-home baseline. For the MVP the oracle holds the utility's key and signs `settle` itself; replacing that with verified oracle signatures is the post-MVP path.
+
+Run it against a testnet event:
+
+```bash
+cd oracle
+pnpm install
+cp .env.example .env        # paste the utility's exported key
+pnpm simulate <eventId>     # write sessions from the on-chain pledge set
+pnpm settle <eventId>       # verify and pay out
+```
+
 ## Contract
 
 Four entry functions (`create_event`, `register_meter`, `respond`, `settle`) over three objects (`SmartMeter`, `DREvent`, `RewardVault`). The whole package is under 200 lines, on purpose.
