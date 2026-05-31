@@ -162,6 +162,32 @@ fun settle_rejects_mismatched_vault() {
     scenario.end();
 }
 
+// The same meter cannot be settled twice for one event (on-chain payout dedup on the vault).
+#[test, expected_failure(abort_code = suiwatt::E_ALREADY_SETTLED)]
+fun settle_rejects_double_settle() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+    };
+
+    scenario.next_tx(UTILITY);
+    {
+        let mut event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault>();
+        let event_id = object::id(&event);
+
+        suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        // Second settle for the same meter aborts.
+        suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+
+        ts::return_shared(event);
+        ts::return_shared(vault);
+    };
+
+    scenario.end();
+}
+
 // respond aborts if the caller does not own the meter.
 #[test, expected_failure(abort_code = suiwatt::E_NOT_METER_OWNER)]
 fun respond_rejects_non_owner() {

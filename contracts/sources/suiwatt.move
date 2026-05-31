@@ -17,6 +17,7 @@ const E_NOT_METER_OWNER: u64 = 1;
 const E_OUTSIDE_WINDOW: u64 = 2;
 const E_WRONG_VAULT: u64 = 3;
 const E_ALREADY_RESPONDED: u64 = 4;
+const E_ALREADY_SETTLED: u64 = 5;
 
 // ===== Objects =====
 
@@ -162,10 +163,16 @@ public fun settle(
     assert!(ctx.sender() == event.utility, E_NOT_UTILITY);
     assert!(vault.event_id == object::id(event), E_WRONG_VAULT);
 
+    // Per-(event, meter) payout dedup. The vault is 1:1 with the event, so a dynamic field
+    // keyed by meter_id on the Shared RewardVault enforces a single payout per response
+    // without a growing vector in any struct (same pattern as the respond dedup).
+    assert!(!df::exists_with_type<ID, bool>(&vault.id, meter_id), E_ALREADY_SETTLED);
+
     let units_paid = if (saved_units < event.remaining_units) saved_units
                      else event.remaining_units;
     if (units_paid == 0) return;
 
+    df::add(&mut vault.id, meter_id, true);
     let amount = units_paid * event.reward_per_unit;
     event.remaining_units = event.remaining_units - units_paid;
 

@@ -181,6 +181,7 @@ public fun settle(
 
 - Caller: **MVP — `event.utility` only** (admin-only oracle). Asserts `ctx.sender() == event.utility` (E_NOT_UTILITY).
 - **Vault/event binding check (required):** `assert!(vault.event_id == object::id(event), E_WRONG_VAULT)` — without this, the utility could drain any vault by passing a mismatched pair.
+- **Double-settle dedup (required):** a dynamic field keyed by `meter_id` on the Shared `RewardVault` marks a paid response, so the same `(event, meter)` cannot be paid twice (E_ALREADY_SETTLED). The vault is 1:1 with the event and `settle` already mutates it, so the marker adds no extra shared-lock contention. It lives on the vault rather than the Owned `SmartMeter` because `settle` cannot touch the responder's meter.
 - Allocation: **first-come-first-served**. Pays `min(saved_units, event.remaining_units) × reward_per_unit` from `vault`, then decrements `event.remaining_units`. Late responders may get partial or nothing.
 - `meter_id` is passed in by the oracle (read from the `MeterResponded` event log) purely so it can be re-emitted in `Settled` for downstream audit / Dashboard joins. The contract does **not** look up the meter object — `settle` cannot touch the user's Owned `SmartMeter`.
 - Emits: `Settled { event_id, meter_id, responder, amount, units_paid }`
@@ -222,6 +223,7 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 | Reward denomination | Native SUI (`Balance<SUI>`) — zero setup to demo, but price-volatile | Generic `Coin<T>` / USDC-pegged rewards so the per-kWh price is stable (see §1.1) |
 | Reward aggregates (per-meter totals, response counts) | Not stored on-chain; derived in the frontend via `suix_queryEvents` filtered on `Settled` events | Off-chain indexer / Subgraph if RPC pagination becomes the bottleneck |
 | Double-response dedup | On-chain: a dynamic field keyed by `event_id` on the Owned `SmartMeter` (E_ALREADY_RESPONDED). Lives on the meter, not the shared `DREvent`, so it adds no shared-lock contention | Move the set off-chain only if meter storage cost ever matters; otherwise on-chain is the source of truth |
+| Double-settle dedup | On-chain: a dynamic field keyed by `meter_id` on the Shared `RewardVault` (E_ALREADY_SETTLED). `settle` already mutates the vault, so the marker adds no extra contention. Off-chain the oracle also skips already-settled pairs | Fold into a richer settlement record if per-payout metadata is ever needed |
 
 ---
 

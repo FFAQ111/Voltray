@@ -7,7 +7,7 @@ import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 export const PACKAGE_ID =
-  "0x1c34bd5411ea26efc74e9526bbdb727a3bdd0c0fde8eb60582b77a24af92585f";
+  "0x6a0f654529672473e14d2e17303570a075841562db176bbfc8b097b7362c2927";
 export const MODULE = "suiwatt";
 export const NETWORK = "testnet" as const;
 

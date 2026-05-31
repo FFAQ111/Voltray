@@ -57,8 +57,8 @@ Four entry functions (`create_event`, `register_meter`, `respond`, `settle`) ove
 
 Deployed to Sui Testnet:
 
-- Package ID: `0x1c34bd5411ea26efc74e9526bbdb727a3bdd0c0fde8eb60582b77a24af92585f`
-- Explorer: https://suiscan.xyz/testnet/object/0x1c34bd5411ea26efc74e9526bbdb727a3bdd0c0fde8eb60582b77a24af92585f
+- Package ID: `0x6a0f654529672473e14d2e17303570a075841562db176bbfc8b097b7362c2927`
+- Explorer: https://suiscan.xyz/testnet/object/0x6a0f654529672473e14d2e17303570a075841562db176bbfc8b097b7362c2927
 
 ## Stack
 
