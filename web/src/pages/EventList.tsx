@@ -14,6 +14,7 @@ export default function EventList({
   const { data, isLoading, error } = useQuery({
     queryKey: ["events"],
     queryFn: () => queryEvents(client),
+    refetchInterval: 4000, // keep the list live without a manual reload
   });
 
   if (isLoading)

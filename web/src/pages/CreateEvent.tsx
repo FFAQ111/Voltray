@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useCurrentAccount,
   useSignAndExecuteTransaction,
+  useSuiClient,
 } from "@mysten/dapp-kit";
 import { toast } from "sonner";
 import {
@@ -14,11 +15,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { buildCreateEvent } from "../lib/suiwatt";
+import { buildCreateEvent, type EventSummary } from "../lib/suiwatt";
 import { formatSui } from "../lib/format";
 
-export default function CreateEvent({ onCreated }: { onCreated: () => void }) {
+export default function CreateEvent({
+  onCreated,
+}: {
+  onCreated: (event: EventSummary | null) => void;
+}) {
   const account = useCurrentAccount();
+  const client = useSuiClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
   const [rewardPerUnit, setRewardPerUnit] = useState(1_000_000);
@@ -40,11 +46,31 @@ export default function CreateEvent({ onCreated }: { onCreated: () => void }) {
     signAndExecute(
       { transaction: tx },
       {
-        onSuccess: () => {
+        onSuccess: async ({ digest }) => {
           toast.success("DR event created", {
             description: `Vault funded with ${formatSui(funding)}.`,
           });
-          onCreated();
+          // Open the new event straight from the tx's created object (a fresh getObject
+          // read), instead of waiting for the laggy event log to index the EventCreated.
+          const res = await client.waitForTransaction({
+            digest,
+            options: { showObjectChanges: true },
+          });
+          const created = res.objectChanges?.find(
+            (c) =>
+              c.type === "created" &&
+              c.objectType.endsWith("::suiwatt::DREvent"),
+          );
+          onCreated(
+            created && "objectId" in created
+              ? {
+                  eventId: created.objectId,
+                  utility: account!.address,
+                  rewardPerUnit,
+                  txDigest: digest,
+                }
+              : null,
+          );
         },
         onError: (e) => toast.error("Create failed", { description: e.message }),
       },

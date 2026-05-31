@@ -61,7 +61,11 @@ function App() {
       <main className="mx-auto max-w-5xl px-4 py-8">
         {view === "dashboard" && <Dashboard />}
         {view === "list" && <EventList onOpen={openDetail} />}
-        {view === "create" && <CreateEvent onCreated={() => setView("list")} />}
+        {view === "create" && (
+          <CreateEvent
+            onCreated={(event) => (event ? openDetail(event) : setView("list"))}
+          />
+        )}
         {view === "detail" && selected && (
           <EventDetail event={selected} onBack={() => setView("list")} />
         )}
