@@ -1,6 +1,12 @@
 # SuiWatt
 
-Utilities pay people to use less electricity when the grid is under stress. The program is called Demand Response, and today it mostly runs through intermediaries with slow, manual payouts. SuiWatt puts it on Sui: a utility funds a reward pool, users respond from a registered smart meter, and payment settles on-chain once the reduction is verified.
+When the grid is about to peak, paying people to use less power is cheaper than firing up another plant. That payment is called Demand Response, and grid operators already spend billions on it each year. Today it runs through aggregators with slow, opaque payouts.
+
+SuiWatt turns that payment into code. A utility funds a reward pool, a participant responds, and the reward settles on-chain the moment a verified meter reading proves the reduction. There is no aggregator deciding who gets paid and no invoice cycle to wait through. The settlement rule is the contract itself.
+
+We start with EV charging. An electric car is a large load you can usually move in time without the driver noticing, so shifting a charge from the evening peak to overnight saves the operator real money. It also makes the measurement honest: one metered charging session over a known window is far easier to verify than estimating what a whole house would otherwise have used, which is where Demand Response usually loses people's trust.
+
+Why Sui: the reward is a real on-chain payment, released against verifiable evidence and sent to many small participants who never have to trust the operator. One PTB funds the vault and pays out in a single atomic step, and the rule that decides who gets paid lives in Move rather than a billing department.
 
 Built for Sui Overflow 2026, DeFi & Payments track.
 
