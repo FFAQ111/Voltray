@@ -53,8 +53,7 @@ Run it against a testnet event:
 cd oracle
 pnpm install
 cp .env.example .env        # paste the utility's exported key
-pnpm simulate <eventId>     # write sessions from the on-chain pledge set
-pnpm settle <eventId>       # verify and pay out
+pnpm settle                 # auto-picks the latest unsettled response, reads sessions, pays out
 ```
 
 ## Contract

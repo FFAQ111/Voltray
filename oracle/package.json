@@ -4,8 +4,9 @@
   "type": "module",
   "description": "Off-chain settlement oracle for SuiWatt: reads OCPP charging sessions and settles DR rewards on Sui testnet.",
   "scripts": {
+    "settle": "tsx src/run.ts",
+    "settle:event": "tsx src/oracle.ts",
     "simulate": "tsx src/simulator.ts",
-    "settle": "tsx src/oracle.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

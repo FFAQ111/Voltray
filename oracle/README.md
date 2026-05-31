@@ -30,14 +30,21 @@ cp .env.example .env        # then paste the utility's suiprivkey1... key
 `settle()` is restricted to the event's utility address, so `ORACLE_SECRET_KEY` must be
 that address's key. Export it with `sui keytool export --key-identity <utility-address>`.
 
-## Run (against a testnet event)
+## Run
+
+```bash
+pnpm settle                 # auto-picks the latest unsettled response, reads sessions, settles
+```
+
+No eventId to copy: it finds the most recent event this oracle owns that still has an
+unsettled response and pays it out. Safe to re-run; already-settled drivers are skipped.
+
+To target a specific event instead, use the two-step form:
 
 ```bash
 pnpm simulate <eventId>     # writes oracle/sessions.json from the on-chain pledge set
-pnpm settle   <eventId>     # verifies sessions and settles eligible drivers on-chain
+pnpm settle:event <eventId> # verifies sessions and settles eligible drivers on-chain
 ```
-
-`pnpm settle` is idempotent — already-settled drivers are skipped, so it is safe to re-run.
 
 ## Files
 
