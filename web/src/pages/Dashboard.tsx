@@ -11,18 +11,25 @@ export default function Dashboard() {
   const client = useSuiClient();
   const account = useCurrentAccount();
 
+  // Poll so a settlement (including one run by the oracle out-of-band) updates the stats
+  // within a few seconds without a manual reload.
+  const POLL_MS = 4000;
+
   const settled = useQuery({
     queryKey: ["settled"],
     queryFn: () => querySettled(client),
+    refetchInterval: POLL_MS,
   });
   const events = useQuery({
     queryKey: ["events"],
     queryFn: () => queryEvents(client),
+    refetchInterval: POLL_MS,
   });
   const meters = useQuery({
     queryKey: ["meters", account?.address],
     queryFn: () => fetchMeters(client, account!.address),
     enabled: !!account,
+    refetchInterval: POLL_MS,
   });
 
   if (!account)

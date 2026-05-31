@@ -55,9 +55,15 @@ export default function EventDetail({
   const qc = useQueryClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
+  // Poll on-chain state so in-app txns and out-of-band oracle settlements appear within a
+  // few seconds without a manual reload (queryEvents indexing lags the tx, so a one-shot
+  // refetch on success can still read stale data).
+  const POLL_MS = 4000;
+
   const detail = useQuery({
     queryKey: ["event", event.eventId],
     queryFn: () => fetchEvent(client, event.eventId),
+    refetchInterval: POLL_MS,
   });
   const vault = useQuery({
     queryKey: ["vault", event.txDigest],
@@ -66,15 +72,18 @@ export default function EventDetail({
   const responded = useQuery({
     queryKey: ["responded", event.eventId],
     queryFn: () => queryResponded(client, event.eventId),
+    refetchInterval: POLL_MS,
   });
   const settled = useQuery({
     queryKey: ["settled", event.eventId],
     queryFn: () => querySettled(client, event.eventId),
+    refetchInterval: POLL_MS,
   });
   const meters = useQuery({
     queryKey: ["meters", account?.address],
     queryFn: () => fetchMeters(client, account!.address),
     enabled: !!account,
+    refetchInterval: POLL_MS,
   });
 
   const refresh = () =>
