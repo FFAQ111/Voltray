@@ -8,7 +8,6 @@ use sui::clock::Clock;
 use sui::coin::{Self, Coin};
 use sui::dynamic_field as df;
 use sui::event::emit;
-use sui::sui::SUI;
 
 // ===== Errors =====
 
@@ -18,6 +17,7 @@ const E_OUTSIDE_WINDOW: u64 = 2;
 const E_WRONG_VAULT: u64 = 3;
 const E_ALREADY_RESPONDED: u64 = 4;
 const E_ALREADY_SETTLED: u64 = 5;
+const E_EVENT_NOT_ENDED: u64 = 6;
 
 // ===== Objects =====
 
@@ -38,12 +38,14 @@ public struct DREvent has key {
     end_time: u64,
 }
 
+// Generic over the reward coin T so the same package settles in any coin — testnet/mainnet
+// USDC for a stable per-kWh price, or SUI. T is supplied by the caller at create_event, so the
+// package itself takes no dependency on the USDC package (see docs/ARCHITECTURE.md §1.1, §5).
 // TODO(post-MVP): consider a shared reward pool across events instead of one vault per event.
-// TODO(post-MVP): generic Coin<T> (e.g. USDC) so the per-kWh reward price is stable, not SUI-volatile (see docs/ARCHITECTURE.md §1.1).
-public struct RewardVault has key {
+public struct RewardVault<phantom T> has key {
     id: UID,
     event_id: ID,
-    balance: Balance<SUI>,
+    balance: Balance<T>,
 }
 
 // ===== Events =====
@@ -74,10 +76,15 @@ public struct Settled has copy, drop {
     units_paid: u64,
 }
 
+public struct Reclaimed has copy, drop {
+    event_id: ID,
+    amount: u64,
+}
+
 // ===== Entry functions =====
 
-public fun create_event(
-    reward_coin: Coin<SUI>,
+public fun create_event<T>(
+    reward_coin: Coin<T>,
     reward_per_unit: u64,
     target_reduction: u64,
     start_time: u64,
@@ -152,9 +159,9 @@ public fun respond(
 
 // TODO(post-MVP): replace admin-only check with oracle signature verification or multisig.
 // TODO(post-MVP): pro-rata or auction-style allocation instead of FCFS.
-public fun settle(
+public fun settle<T>(
     event: &mut DREvent,
-    vault: &mut RewardVault,
+    vault: &mut RewardVault<T>,
     responder: address,
     meter_id: ID,
     saved_units: u64,
@@ -186,4 +193,29 @@ public fun settle(
         amount,
         units_paid,
     });
+}
+
+// After the window closes, the utility recovers the unspent vault balance (the worst-case
+// funding it pre-deposited but the responders never claimed). Gated on the window being over
+// so funds can't be pulled out from under active responders.
+//
+// TODO(post-MVP): a decentralised settler needs a settlement-finality / grace window before
+// reclaim, so leftovers can't be pulled ahead of pledged-but-unsettled payouts. Under the MVP
+// admin-only model the utility already controls settle(), so reclaim grants it no new power.
+public fun reclaim_remaining<T>(
+    event: &DREvent,
+    vault: &mut RewardVault<T>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(ctx.sender() == event.utility, E_NOT_UTILITY);
+    assert!(vault.event_id == object::id(event), E_WRONG_VAULT);
+    assert!(clock.timestamp_ms() > event.end_time, E_EVENT_NOT_ENDED);
+
+    let amount = vault.balance.value();
+    if (amount == 0) return;
+
+    let payment = coin::from_balance(balance::withdraw_all(&mut vault.balance), ctx);
+    transfer::public_transfer(payment, event.utility);
+    emit(Reclaimed { event_id: object::id(event), amount });
 }

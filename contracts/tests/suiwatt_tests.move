@@ -54,7 +54,7 @@ fun full_lifecycle_pays_responder() {
     scenario.next_tx(UTILITY);
     {
         let mut event = scenario.take_shared<DREvent>();
-        let mut vault = scenario.take_shared<RewardVault>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
 
         suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
@@ -86,7 +86,7 @@ fun settle_caps_payout_at_remaining_units() {
     scenario.next_tx(UTILITY);
     {
         let mut event = scenario.take_shared<DREvent>();
-        let mut vault = scenario.take_shared<RewardVault>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
 
         let event_id = object::id(&event);
         // Ask for 150 units; only 100 remain, so payout is 100 * 10 = 1000.
@@ -118,7 +118,7 @@ fun settle_rejects_non_utility() {
     scenario.next_tx(USER); // USER is not the utility
     {
         let mut event = scenario.take_shared<DREvent>();
-        let mut vault = scenario.take_shared<RewardVault>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
         suiwatt::settle(&mut event, &mut vault, USER, event_id, 10, scenario.ctx());
         ts::return_shared(event);
@@ -140,7 +140,7 @@ fun settle_rejects_mismatched_vault() {
     };
     scenario.next_tx(UTILITY);
     let mut event_a = scenario.take_shared<DREvent>();
-    let vault_a = scenario.take_shared<RewardVault>();
+    let vault_a = scenario.take_shared<RewardVault<SUI>>();
 
     // Event B — with A's objects out, these takes are unambiguous.
     {
@@ -149,7 +149,7 @@ fun settle_rejects_mismatched_vault() {
     };
     scenario.next_tx(UTILITY);
     let event_b = scenario.take_shared<DREvent>();
-    let mut vault_b = scenario.take_shared<RewardVault>();
+    let mut vault_b = scenario.take_shared<RewardVault<SUI>>();
 
     // Settle event A against event B's vault -> E_WRONG_VAULT.
     let event_a_id = object::id(&event_a);
@@ -174,7 +174,7 @@ fun settle_rejects_double_settle() {
     scenario.next_tx(UTILITY);
     {
         let mut event = scenario.take_shared<DREvent>();
-        let mut vault = scenario.take_shared<RewardVault>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
 
         suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
@@ -280,6 +280,92 @@ fun respond_rejects_double_response() {
         clock.destroy_for_testing();
         scenario.return_to_sender(meter);
         ts::return_shared(event);
+    };
+
+    scenario.end();
+}
+
+// After the window closes, the utility reclaims the unspent vault balance.
+#[test]
+fun reclaim_returns_unspent_to_utility() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+    };
+
+    scenario.next_tx(UTILITY);
+    {
+        let event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
+        let mut clock = clock::create_for_testing(scenario.ctx());
+        clock.set_for_testing(END + 1); // window closed
+
+        suiwatt::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
+
+        clock.destroy_for_testing();
+        ts::return_shared(event);
+        ts::return_shared(vault);
+    };
+
+    // Nothing was settled, so the full funding comes back to the utility.
+    scenario.next_tx(UTILITY);
+    {
+        let refund = scenario.take_from_sender<Coin<SUI>>();
+        assert!(refund.value() == VAULT_FUNDING, 0);
+        coin::burn_for_testing(refund);
+    };
+
+    scenario.end();
+}
+
+// reclaim aborts while the window is still open (END is inclusive, so now == END is "not ended").
+#[test, expected_failure(abort_code = suiwatt::E_EVENT_NOT_ENDED)]
+fun reclaim_rejects_before_end() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+    };
+
+    scenario.next_tx(UTILITY);
+    {
+        let event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
+        let mut clock = clock::create_for_testing(scenario.ctx());
+        clock.set_for_testing(END); // still inside the window
+
+        suiwatt::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
+
+        clock.destroy_for_testing();
+        ts::return_shared(event);
+        ts::return_shared(vault);
+    };
+
+    scenario.end();
+}
+
+// reclaim is restricted to the event's utility.
+#[test, expected_failure(abort_code = suiwatt::E_NOT_UTILITY)]
+fun reclaim_rejects_non_utility() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+    };
+
+    scenario.next_tx(USER); // not the utility
+    {
+        let event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
+        let mut clock = clock::create_for_testing(scenario.ctx());
+        clock.set_for_testing(END + 1);
+
+        suiwatt::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
+
+        clock.destroy_for_testing();
+        ts::return_shared(event);
+        ts::return_shared(vault);
     };
 
     scenario.end();

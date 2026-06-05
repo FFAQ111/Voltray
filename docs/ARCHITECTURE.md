@@ -31,11 +31,11 @@ Oracle ──settle──▶ scan event log → pay out from RewardVault
 SuiWatt is a **pay-per-reduction bounty with a capped pool** — the same shape as a real-world DR capacity payment.
 
 - **1 unit = 1 kWh of consumption reduced below the user's baseline.** This is the physical meaning of a "unit" everywhere in the contract.
-- **`reward_per_unit`** — the price (in MIST) the utility offers per kWh saved.
+- **`reward_per_unit`** — the price (in µUSDC, 6 decimals) the utility offers per kWh saved.
 - **`target_reduction`** — the total kWh the utility wants shaved across *all* participants in this event.
 - **Vault = `reward_per_unit × target_reduction`** — pre-funded to cover the worst case (everyone hits target), so the contract never promises money it cannot pay. Settlement draws down `remaining_units` first-come-first-served until the pool is exhausted.
 
-**Why pay in SUI for MVP (and the volatility caveat).** Rewards are denominated in native SUI/MIST because it needs zero extra setup to demo. The honest weakness: SUI's price floats, so a fixed `reward_per_unit` is an unstable real-world incentive. The clean fix is to denominate rewards in a stablecoin (USDC on Sui) — see §5. That is a post-MVP change, not a demo blocker.
+**Why pay in USDC (stablecoin-denominated).** Rewards are denominated in USDC so a fixed `reward_per_unit` is a stable real-world incentive — a floating-price coin like SUI would make the per-kWh price drift. The contract is **generic over the reward coin `Coin<T>`**, so the package itself depends on no specific coin package; the frontend and oracle pass Circle USDC as the type argument (testnet USDC for the demo, mainnet USDC needs no contract change). Amounts are in µUSDC (6 decimals). See §5.
 
 **Reward sizing is the oracle's input, not an on-chain model.** `saved_units` is supplied at `settle` time by the trusted utility/oracle. A production system would derive it from a baseline-vs-actual measurement & verification (M&V) pipeline; that pipeline is explicitly out of MVP scope (§7).
 
@@ -94,11 +94,10 @@ Reasons:
 Holds the reward funds the utility pre-deposited.
 
 ```move
-struct RewardVault has key {
+struct RewardVault<phantom T> has key {
     id: UID,
     event_id: ID,        // links to the DREvent
-    balance: Balance<SUI>,
-    // TODO: settled flag, remaining caps, ...
+    balance: Balance<T>, // T = reward coin (Circle USDC on testnet/mainnet); see §1.1, §5
 }
 ```
 
@@ -111,8 +110,8 @@ struct RewardVault has key {
 ### 3.1 `create_event`
 
 ```move
-public fun create_event(
-    reward_coin: Coin<SUI>,
+public fun create_event<T>(
+    reward_coin: Coin<T>,
     reward_per_unit: u64,
     target_reduction: u64,
     start_time: u64,
@@ -167,9 +166,9 @@ public fun respond(
 ### 3.4 `settle`
 
 ```move
-public fun settle(
+public fun settle<T>(
     event: &mut DREvent,
-    vault: &mut RewardVault,
+    vault: &mut RewardVault<T>,
     responder: address,
     meter_id: ID,         // for audit only; emitted into Settled event, not validated on-chain
     saved_units: u64,
@@ -186,6 +185,25 @@ public fun settle(
 - `meter_id` is passed in by the oracle (read from the `MeterResponded` event log) purely so it can be re-emitted in `Settled` for downstream audit / Dashboard joins. The contract does **not** look up the meter object — `settle` cannot touch the user's Owned `SmartMeter`.
 - Emits: `Settled { event_id, meter_id, responder, amount, units_paid }`
 - **TODO(post-MVP):** Verified oracle signatures, possibly Seal-encrypted consumption reports.
+
+---
+
+### 3.5 `reclaim_remaining`
+
+```move
+public fun reclaim_remaining<T>(
+    event: &DREvent,
+    vault: &mut RewardVault<T>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+)
+```
+
+- Caller: **`event.utility` only** (E_NOT_UTILITY).
+- Returns the vault's unspent balance to the utility once the window has closed. The vault is pre-funded for the worst case (every participant hits target); in practice responders rarely claim all of it, so this recovers the surplus instead of stranding it on-chain.
+- Checks: utility-only; `vault.event_id == object::id(event)` (E_WRONG_VAULT); `clock.timestamp_ms() > event.end_time` (E_EVENT_NOT_ENDED) so funds can't be pulled out from under active responders.
+- No-op (early return) if the balance is already zero. Emits: `Reclaimed { event_id, amount }`.
+- **TODO(post-MVP):** with a decentralised settler, gate reclaim behind a settlement-finality / grace window so leftovers can't precede pledged-but-unsettled payouts. Under MVP admin-only settlement the utility already controls payouts, so reclaim grants no new power.
 
 ---
 
@@ -220,10 +238,11 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 | Reward allocation | First-come-first-served, capped by `remaining_units` | Pro-rata split, or auction-style bidding |
 | Meter hardware ID | Free-form `label: String`, no on-chain verification | Hardware-signed serials, TEE attestation, Seal-bound identity |
 | Vault topology | One `RewardVault` per `DREvent` (1:1) | Shared pool across events |
-| Reward denomination | Native SUI (`Balance<SUI>`) — zero setup to demo, but price-volatile | Generic `Coin<T>` / USDC-pegged rewards so the per-kWh price is stable (see §1.1) |
+| Reward denomination | **Done — generic `Coin<T>`, settled in Circle USDC** (testnet for the demo). Stable per-kWh price; the package depends on no coin package, since the coin is a type argument | Multi-stablecoin support / per-event choice of reward coin |
 | Reward aggregates (per-meter totals, response counts) | Not stored on-chain; derived in the frontend via `suix_queryEvents` filtered on `Settled` events | Off-chain indexer / Subgraph if RPC pagination becomes the bottleneck |
 | Double-response dedup | On-chain: a dynamic field keyed by `event_id` on the Owned `SmartMeter` (E_ALREADY_RESPONDED). Lives on the meter, not the shared `DREvent`, so it adds no shared-lock contention | Move the set off-chain only if meter storage cost ever matters; otherwise on-chain is the source of truth |
 | Double-settle dedup | On-chain: a dynamic field keyed by `meter_id` on the Shared `RewardVault` (E_ALREADY_SETTLED). `settle` already mutates the vault, so the marker adds no extra contention. Off-chain the oracle also skips already-settled pairs | Fold into a richer settlement record if per-payout metadata is ever needed |
+| Unspent vault funds | `reclaim_remaining<T>` returns the leftover to the utility once `now > end_time` (admin-only, same trust as `settle`) | Settlement-finality / grace window before reclaim (see §3.5 TODO) |
 
 ---
 
