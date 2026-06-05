@@ -9,6 +9,7 @@ Decentralized energy Demand Response (DR) system on Sui. Utilities post DR event
 ## Key documents
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — object schema, function signatures, MVP decisions, open questions. **Read this before touching contracts.**
+- [docs/TRUST.md](docs/TRUST.md) — trust model, the oracle problem, OCPP/OCPI integration paths, trust-minimisation roadmap, hosting by stage. Read this before touching the oracle or pitching the project.
 - [README.md](README.md) — public-facing project overview.
 
 ---
