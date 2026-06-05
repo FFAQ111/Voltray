@@ -2,8 +2,8 @@
 // transaction builders. Aggregates are derived here by scanning Sui events
 // (see docs/ARCHITECTURE.md §5) — the contract stores no accumulating state.
 import type { SuiClient } from "@mysten/sui/client";
-import { Transaction } from "@mysten/sui/transactions";
-import { CLOCK_ID, fq } from "./config";
+import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
+import { CLOCK_ID, USDC_TYPE, fq } from "./config";
 
 // ===== Parsed shapes =====
 
@@ -94,7 +94,8 @@ export async function findVault(
     options: { showObjectChanges: true },
   });
   const change = tx.objectChanges?.find(
-    (c) => c.type === "created" && c.objectType.endsWith("::suiwatt::RewardVault"),
+    // RewardVault is generic, so its type ends with `<...::usdc::USDC>` — match the prefix.
+    (c) => c.type === "created" && c.objectType.includes("::suiwatt::RewardVault<"),
   );
   return change && "objectId" in change ? change.objectId : null;
 }
@@ -162,8 +163,9 @@ export async function fetchMeters(
 
 // ===== Transaction builders =====
 
-// PTB: split the funding amount off the gas coin and pass it straight into
-// create_event in one transaction (split + create + fund + share atomically).
+// PTB: fund the vault from the creator's USDC coins and pass it straight into create_event
+// in one transaction. coinWithBalance auto-selects/merges/splits the exact USDC amount; the
+// contract is generic over the coin, so USDC is supplied as the type argument.
 export function buildCreateEvent(args: {
   funding: number;
   rewardPerUnit: number;
@@ -172,11 +174,11 @@ export function buildCreateEvent(args: {
   endTime: number;
 }): Transaction {
   const tx = new Transaction();
-  const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(args.funding)]);
   tx.moveCall({
     target: fq("create_event"),
+    typeArguments: [USDC_TYPE],
     arguments: [
-      coin,
+      coinWithBalance({ type: USDC_TYPE, balance: BigInt(args.funding) }),
       tx.pure.u64(args.rewardPerUnit),
       tx.pure.u64(args.targetReduction),
       tx.pure.u64(args.startTime),
@@ -211,6 +213,7 @@ export function buildSettle(args: {
   const tx = new Transaction();
   tx.moveCall({
     target: fq("settle"),
+    typeArguments: [USDC_TYPE],
     arguments: [
       tx.object(args.eventId),
       tx.object(args.vaultId),
@@ -218,6 +221,17 @@ export function buildSettle(args: {
       tx.pure.id(args.meterId),
       tx.pure.u64(args.savedUnits),
     ],
+  });
+  return tx;
+}
+
+// Utility recovers the unspent vault balance once the window has closed (reclaim_remaining).
+export function buildReclaim(eventId: string, vaultId: string): Transaction {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: fq("reclaim_remaining"),
+    typeArguments: [USDC_TYPE],
+    arguments: [tx.object(eventId), tx.object(vaultId), tx.object(CLOCK_ID)],
   });
   return tx;
 }

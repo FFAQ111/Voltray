@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Coins, Gauge, Power, Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchMeters, queryEvents, querySettled } from "../lib/suiwatt";
-import { formatSui } from "../lib/format";
+import { formatUsdc } from "../lib/format";
 
 // Reduced-scope Dashboard: a personal summary derived off-chain by scanning
 // Settled events (see docs/ARCHITECTURE.md §5) — no aggregate state on-chain.
@@ -48,8 +48,8 @@ export default function Dashboard() {
   const stats = [
     {
       label: "Rewards earned",
-      value: formatSui(earned),
-      sub: `${earned.toLocaleString()} MIST`,
+      value: formatUsdc(earned),
+      sub: `${earned.toLocaleString()} µUSDC`,
       icon: Coins,
     },
     {

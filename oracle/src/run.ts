@@ -4,7 +4,7 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { Transaction } from "@mysten/sui/transactions";
-import { client, fq, oracleKeypair } from "./config";
+import { client, fq, oracleKeypair, USDC_TYPE } from "./config";
 import { fetchEvent, findVault, queryResponded, querySettled } from "./chain";
 import type { OcppSession } from "./simulator";
 
@@ -73,6 +73,7 @@ async function main() {
     const tx = new Transaction();
     tx.moveCall({
       target: fq("settle"),
+      typeArguments: [USDC_TYPE],
       arguments: [
         tx.object(eventId),
         tx.object(vaultId),

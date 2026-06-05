@@ -87,7 +87,9 @@ export async function findVault(eventId: string): Promise<string> {
   const change = tx.objectChanges?.find(
     (c) =>
       c.type === "created" &&
-      c.objectType.endsWith("::suiwatt::RewardVault"),
+      // RewardVault is now generic, so its type carries a `<...::usdc::USDC>` suffix —
+      // match the prefix rather than the whole string.
+      c.objectType.includes("::suiwatt::RewardVault<"),
   );
   if (!change || !("objectId" in change))
     throw new Error(`RewardVault not found for ${eventId}`);

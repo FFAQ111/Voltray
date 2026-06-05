@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildCreateEvent, type EventSummary } from "../lib/suiwatt";
-import { formatSui } from "../lib/format";
+import { formatUsdc } from "../lib/format";
 
 export default function CreateEvent({
   onCreated,
@@ -27,7 +27,9 @@ export default function CreateEvent({
   const client = useSuiClient();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
 
-  const [rewardPerUnit, setRewardPerUnit] = useState(1_000_000);
+  // µUSDC per kWh (6 decimals): 100_000 = 0.1 USDC/kWh. With target 100 the vault funds at
+  // 10 USDC, so one Circle faucet claim (20 USDC / 2h) covers a demo event.
+  const [rewardPerUnit, setRewardPerUnit] = useState(100_000);
   const [targetReduction, setTargetReduction] = useState(100);
   const [durationMin, setDurationMin] = useState(60);
 
@@ -48,7 +50,7 @@ export default function CreateEvent({
       {
         onSuccess: async ({ digest }) => {
           toast.success("DR event created", {
-            description: `Vault funded with ${formatSui(funding)}.`,
+            description: `Vault funded with ${formatUsdc(funding)}.`,
           });
           // Open the new event straight from the tx's created object (a fresh getObject
           // read), instead of waiting for the laggy event log to index the EventCreated.
@@ -90,13 +92,13 @@ export default function CreateEvent({
         <CardHeader>
           <CardTitle>Create DR Event</CardTitle>
           <CardDescription>
-            One PTB splits the funding off your gas coin and funds the reward
-            vault atomically.
+            One PTB pulls USDC from your wallet and funds the reward vault
+            atomically. Get testnet USDC from faucet.circle.com.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="reward">Reward per unit (MIST / kWh saved)</Label>
+            <Label htmlFor="reward">Reward per unit (µUSDC / kWh saved)</Label>
             <Input
               id="reward"
               type="number"
@@ -131,9 +133,9 @@ export default function CreateEvent({
           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
             <span className="text-muted-foreground">Vault funding (auto)</span>
             <span className="font-medium">
-              {formatSui(funding)}
+              {formatUsdc(funding)}
               <span className="ml-1 text-xs text-muted-foreground">
-                ({funding.toLocaleString()} MIST)
+                ({funding.toLocaleString()} µUSDC)
               </span>
             </span>
           </div>

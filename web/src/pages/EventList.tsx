@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { queryEvents, type EventSummary } from "../lib/suiwatt";
-import { formatSui, shortAddr } from "../lib/format";
+import { formatUsdc, shortAddr } from "../lib/format";
 
 export default function EventList({
   onOpen,
@@ -57,7 +57,7 @@ export default function EventList({
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Reward / unit</span>
-                <span>{formatSui(e.rewardPerUnit)}</span>
+                <span>{formatUsdc(e.rewardPerUnit)}</span>
               </div>
               <div className="flex items-center gap-1 pt-1 text-sm font-medium text-primary">
                 View detail <ArrowRight className="size-4" />

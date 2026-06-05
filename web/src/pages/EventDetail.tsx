@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  buildReclaim,
   buildRegisterMeter,
   buildRespond,
   buildSettle,
@@ -35,7 +36,7 @@ import {
   querySettled,
   type EventSummary,
 } from "../lib/suiwatt";
-import { formatSui, formatTime, shortAddr, windowStatus } from "../lib/format";
+import { formatUsdc, formatTime, shortAddr, windowStatus } from "../lib/format";
 
 const STATUS_BADGE: Record<ReturnType<typeof windowStatus>, string> = {
   active: "border-transparent bg-emerald-500/15 text-emerald-400",
@@ -136,7 +137,7 @@ export default function EventDetail({
       <Card>
         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Row label="Utility" value={shortAddr(ev.utility)} mono />
-          <Row label="Reward / unit" value={formatSui(ev.rewardPerUnit)} />
+          <Row label="Reward / unit" value={formatUsdc(ev.rewardPerUnit)} />
           <Row
             label="Remaining / target"
             value={`${ev.remainingUnits} / ${ev.targetReduction} kWh`}
@@ -171,23 +172,32 @@ export default function EventDetail({
 
       {/* Utility (oracle) actions */}
       {isUtility && (
-        <SettlePanel
-          responders={respondedList}
-          settled={settledList}
-          disabled={isPending || !vault.data}
-          onSettle={(responder, meterId, savedUnits) =>
-            run(
-              buildSettle({
-                eventId: ev.id,
-                vaultId: vault.data!,
-                responder,
-                meterId,
-                savedUnits,
-              }),
-              "Settled.",
-            )
-          }
-        />
+        <>
+          <SettlePanel
+            responders={respondedList}
+            settled={settledList}
+            disabled={isPending || !vault.data}
+            onSettle={(responder, meterId, savedUnits) =>
+              run(
+                buildSettle({
+                  eventId: ev.id,
+                  vaultId: vault.data!,
+                  responder,
+                  meterId,
+                  savedUnits,
+                }),
+                "Settled.",
+              )
+            }
+          />
+          <ReclaimPanel
+            canReclaim={status === "ended"}
+            disabled={isPending || !vault.data}
+            onReclaim={() =>
+              run(buildReclaim(ev.id, vault.data!), "Remaining funds reclaimed.")
+            }
+          />
+        </>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -228,7 +238,7 @@ export default function EventDetail({
                     <span>
                       {s.unitsPaid} kWh ·{" "}
                       <span className="text-emerald-400">
-                        {formatSui(s.amount)}
+                        {formatUsdc(s.amount)}
                       </span>
                     </span>
                   </li>
@@ -329,6 +339,37 @@ function RespondPanel({
             </Button>
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReclaimPanel({
+  canReclaim,
+  disabled,
+  onReclaim,
+}: {
+  canReclaim: boolean;
+  disabled: boolean;
+  onReclaim: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Reclaim unspent funds</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          After the window closes, return the vault's unspent balance to the
+          utility.
+        </p>
+        <Button
+          variant="secondary"
+          disabled={disabled || !canReclaim}
+          onClick={onReclaim}
+        >
+          {canReclaim ? "Reclaim remaining" : "Available after window ends"}
+        </Button>
       </CardContent>
     </Card>
   );
