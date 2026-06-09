@@ -19,3 +19,7 @@ export const USDC_SYMBOL = "USDC";
 
 // Fully-qualified `package::module::name` for move calls and event filters.
 export const fq = (name: string) => `${PACKAGE_ID}::${MODULE}::${name}`;
+
+// Public repo, linked from the landing page.
+export const GITHUB_URL = "https://github.com/FFAQ111/SuiWatt";
+export const TRUST_DOC_URL = `${GITHUB_URL}/blob/main/docs/TRUST.md`;

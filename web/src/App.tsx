@@ -7,8 +7,9 @@ import Dashboard from "./pages/Dashboard";
 import EventList from "./pages/EventList";
 import CreateEvent from "./pages/CreateEvent";
 import EventDetail from "./pages/EventDetail";
+import Landing from "./pages/Landing";
 
-export type View = "dashboard" | "list" | "create" | "detail";
+export type View = "landing" | "dashboard" | "list" | "create" | "detail";
 
 const TABS: { view: View; label: string }[] = [
   { view: "dashboard", label: "Dashboard" },
@@ -17,7 +18,7 @@ const TABS: { view: View; label: string }[] = [
 ];
 
 function App() {
-  const [view, setView] = useState<View>("list");
+  const [view, setView] = useState<View>("landing");
   const [selected, setSelected] = useState<EventSummary | null>(null);
 
   const openDetail = (event: EventSummary) => {
@@ -32,7 +33,7 @@ function App() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4">
           <button
-            onClick={() => setView("dashboard")}
+            onClick={() => setView("landing")}
             className="flex items-center gap-2"
           >
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -59,6 +60,7 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
+        {view === "landing" && <Landing onLaunch={() => setView("list")} />}
         {view === "dashboard" && <Dashboard />}
         {view === "list" && <EventList onOpen={openDetail} />}
         {view === "create" && (
