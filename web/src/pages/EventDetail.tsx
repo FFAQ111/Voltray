@@ -32,6 +32,7 @@ import {
   fetchEvent,
   fetchMeters,
   findVault,
+  queryReclaimed,
   queryResponded,
   querySettled,
   type EventSummary,
@@ -80,6 +81,11 @@ export default function EventDetail({
     queryFn: () => querySettled(client, event.eventId),
     refetchInterval: POLL_MS,
   });
+  const reclaimed = useQuery({
+    queryKey: ["reclaimed", event.eventId],
+    queryFn: () => queryReclaimed(client, event.eventId),
+    refetchInterval: POLL_MS,
+  });
   const meters = useQuery({
     queryKey: ["meters", account?.address],
     queryFn: () => fetchMeters(client, account!.address),
@@ -90,7 +96,7 @@ export default function EventDetail({
   const refresh = () =>
     qc.invalidateQueries({
       predicate: (q) =>
-        ["event", "responded", "settled", "meters"].includes(
+        ["event", "responded", "settled", "reclaimed", "meters"].includes(
           q.queryKey[0] as string,
         ),
     });
@@ -120,6 +126,17 @@ export default function EventDetail({
   const myMeters = meters.data ?? [];
   const respondedList = responded.data ?? [];
   const settledList = settled.data ?? [];
+
+  // The UI funds each vault at exactly target * reward (see CreateEvent), so the unspent
+  // balance is remainingUnits * rewardPerUnit — until a reclaim empties it. Detecting the
+  // Reclaimed event lets us close out Settle/Reclaim instead of leaving buttons live that
+  // would only abort (settle) or no-op (reclaim) on-chain and waste the caller's gas.
+  const isReclaimed = (reclaimed.data ?? []).length > 0;
+  const reclaimableUsdc = isReclaimed ? 0 : ev.remainingUnits * ev.rewardPerUnit;
+  const settleClosed = isReclaimed || ev.remainingUnits === 0;
+  const settleClosedReason = isReclaimed
+    ? "Unspent funds were reclaimed by the utility — settlement is closed."
+    : "All target units have been settled — the vault is empty.";
 
   return (
     <div className="space-y-6">
@@ -177,6 +194,8 @@ export default function EventDetail({
             responders={respondedList}
             settled={settledList}
             disabled={isPending || !vault.data}
+            closed={settleClosed}
+            closedReason={settleClosedReason}
             onSettle={(responder, meterId, savedUnits) =>
               run(
                 buildSettle({
@@ -191,7 +210,10 @@ export default function EventDetail({
             }
           />
           <ReclaimPanel
-            canReclaim={status === "ended"}
+            status={status}
+            reclaimed={isReclaimed}
+            remainingUnits={ev.remainingUnits}
+            reclaimableUsdc={reclaimableUsdc}
             disabled={isPending || !vault.data}
             onReclaim={() =>
               run(buildReclaim(ev.id, vault.data!), "Remaining funds reclaimed.")
@@ -345,14 +367,32 @@ function RespondPanel({
 }
 
 function ReclaimPanel({
-  canReclaim,
+  status,
+  reclaimed,
+  remainingUnits,
+  reclaimableUsdc,
   disabled,
   onReclaim,
 }: {
-  canReclaim: boolean;
+  status: ReturnType<typeof windowStatus>;
+  reclaimed: boolean;
+  remainingUnits: number;
+  reclaimableUsdc: number;
   disabled: boolean;
   onReclaim: () => void;
 }) {
+  const ended = status === "ended";
+  // Only enable when the window is over AND there is an unspent balance not yet pulled —
+  // otherwise the on-chain call either aborts or no-ops while still costing gas.
+  let label = "Available after window ends";
+  let enabled = false;
+  if (ended && reclaimed) label = "Funds reclaimed";
+  else if (ended && remainingUnits === 0) label = "Nothing to reclaim";
+  else if (ended) {
+    label = `Reclaim ${formatUsdc(reclaimableUsdc)}`;
+    enabled = true;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -360,15 +400,16 @@ function ReclaimPanel({
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          After the window closes, return the vault's unspent balance to the
-          utility.
+          {reclaimed
+            ? "The unspent vault balance has been returned to the utility."
+            : "After the window closes, return the vault's unspent balance to the utility."}
         </p>
         <Button
           variant="secondary"
-          disabled={disabled || !canReclaim}
+          disabled={disabled || !enabled}
           onClick={onReclaim}
         >
-          {canReclaim ? "Reclaim remaining" : "Available after window ends"}
+          {label}
         </Button>
       </CardContent>
     </Card>
@@ -379,11 +420,15 @@ function SettlePanel({
   responders,
   settled,
   disabled,
+  closed,
+  closedReason,
   onSettle,
 }: {
   responders: { responder: string; meterId: string }[];
   settled: { responder: string }[];
   disabled: boolean;
+  closed: boolean;
+  closedReason: string;
   onSettle: (responder: string, meterId: string, savedUnits: number) => void;
 }) {
   const [units, setUnits] = useState<Record<string, number>>({});
@@ -399,6 +444,12 @@ function SettlePanel({
             No responders to settle.
           </p>
         ) : (
+          <>
+          {closed && (
+            <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              {closedReason}
+            </p>
+          )}
           <ul className="space-y-3">
             {responders.map((r, i) => {
               const paid = settled.some((s) => s.responder === r.responder);
@@ -423,7 +474,7 @@ function SettlePanel({
                       }
                     />
                     <Button
-                      disabled={disabled || paid || !units[r.responder]}
+                      disabled={disabled || paid || !units[r.responder] || closed}
                       onClick={() =>
                         onSettle(r.responder, r.meterId, units[r.responder])
                       }
@@ -435,6 +486,7 @@ function SettlePanel({
               );
             })}
           </ul>
+          </>
         )}
       </CardContent>
     </Card>

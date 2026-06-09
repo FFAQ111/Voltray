@@ -39,6 +39,11 @@ export interface Settled {
   unitsPaid: number;
 }
 
+export interface Reclaimed {
+  eventId: string;
+  amount: number;
+}
+
 export interface Meter {
   id: string;
   label: string;
@@ -120,6 +125,23 @@ export async function querySettled(
     };
   });
   return eventId ? all.filter((s) => s.eventId === eventId) : all;
+}
+
+export async function queryReclaimed(
+  client: SuiClient,
+  eventId: string,
+): Promise<Reclaimed[]> {
+  const res = await client.queryEvents({
+    query: { MoveEventType: fq("Reclaimed") },
+    order: "descending",
+    limit: 50,
+  });
+  return res.data
+    .map((e) => {
+      const j = e.parsedJson as Record<string, string>;
+      return { eventId: j.event_id, amount: Number(j.amount) };
+    })
+    .filter((r) => r.eventId === eventId);
 }
 
 export async function queryResponded(
