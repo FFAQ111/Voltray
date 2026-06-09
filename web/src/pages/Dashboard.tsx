@@ -1,28 +1,52 @@
+import { useState } from "react";
 import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
 import { useQuery } from "@tanstack/react-query";
-import { Coins, Gauge, Power, Zap } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { fetchMeters, queryEvents, querySettled } from "../lib/suiwatt";
-import { formatUsdc } from "../lib/format";
+import { Coins, Gauge, History, Power, Zap } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  fetchMeters,
+  queryMyActivity,
+  type ActivityKind,
+} from "../lib/suiwatt";
+import { formatUsdc, formatTime, shortAddr } from "../lib/format";
 
-// Reduced-scope Dashboard: a personal summary derived off-chain by scanning
-// Settled events (see docs/ARCHITECTURE.md §5) — no aggregate state on-chain.
+// Reduced-scope Dashboard: a personal summary derived off-chain by scanning the event log
+// (see docs/ARCHITECTURE.md §5) — no aggregate state on-chain. Stats and the activity feed
+// share one queryMyActivity scan so the page issues a single set of event queries.
+const POLL_MS = 4000;
+const PAGE = 10;
+
+const KIND_META: Record<ActivityKind, { label: string; cls: string }> = {
+  funded: {
+    label: "Funded",
+    cls: "border-transparent bg-amber-500/15 text-amber-400",
+  },
+  responded: {
+    label: "Responded",
+    cls: "border-transparent bg-blue-500/15 text-blue-400",
+  },
+  earned: {
+    label: "Earned",
+    cls: "border-transparent bg-emerald-500/15 text-emerald-400",
+  },
+};
+
 export default function Dashboard() {
   const client = useSuiClient();
   const account = useCurrentAccount();
+  const [showAll, setShowAll] = useState(false);
 
-  // Poll so a settlement (including one run by the oracle out-of-band) updates the stats
-  // within a few seconds without a manual reload.
-  const POLL_MS = 4000;
-
-  const settled = useQuery({
-    queryKey: ["settled"],
-    queryFn: () => querySettled(client),
-    refetchInterval: POLL_MS,
-  });
-  const events = useQuery({
-    queryKey: ["events"],
-    queryFn: () => queryEvents(client),
+  const activity = useQuery({
+    queryKey: ["activity", account?.address],
+    queryFn: () => queryMyActivity(client, account!.address),
+    enabled: !!account,
     refetchInterval: POLL_MS,
   });
   const meters = useQuery({
@@ -39,11 +63,10 @@ export default function Dashboard() {
       </p>
     );
 
-  const mine = (settled.data ?? []).filter((s) => s.responder === account.address);
-  const earned = mine.reduce((sum, s) => sum + s.amount, 0);
-  const created = (events.data ?? []).filter(
-    (e) => e.utility === account.address,
-  ).length;
+  const acts = activity.data ?? [];
+  const earnedActs = acts.filter((a) => a.kind === "earned");
+  const earned = earnedActs.reduce((sum, a) => sum + (a.amount ?? 0), 0);
+  const created = acts.filter((a) => a.kind === "funded").length;
 
   const stats = [
     {
@@ -54,7 +77,7 @@ export default function Dashboard() {
     },
     {
       label: "Rewarded responses",
-      value: mine.length.toString(),
+      value: earnedActs.length.toString(),
       sub: "settled payouts",
       icon: Zap,
     },
@@ -71,6 +94,8 @@ export default function Dashboard() {
       icon: Power,
     },
   ];
+
+  const shown = showAll ? acts : acts.slice(0, PAGE);
 
   return (
     <div className="space-y-6">
@@ -97,6 +122,66 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="size-4" /> Recent activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {acts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No activity yet. Fund, respond to, or get settled on an event.
+            </p>
+          ) : (
+            <>
+              <ul className="divide-y divide-border">
+                {shown.map((a, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Badge className={KIND_META[a.kind].cls}>
+                        {KIND_META[a.kind].label}
+                      </Badge>
+                      <span className="font-mono text-muted-foreground">
+                        {shortAddr(a.eventId)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {a.kind === "earned" && (
+                        <span className="text-emerald-400">
+                          {formatUsdc(a.amount ?? 0)}
+                        </span>
+                      )}
+                      {a.kind === "funded" && (
+                        <span className="text-muted-foreground">
+                          {formatUsdc(a.rewardPerUnit ?? 0)} / unit
+                        </span>
+                      )}
+                      <span className="text-muted-foreground">
+                        {a.timestamp ? formatTime(a.timestamp) : "—"}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {acts.length > PAGE && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setShowAll((v) => !v)}
+                >
+                  {showAll ? "Show less" : `Show all ${acts.length}`}
+                </Button>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

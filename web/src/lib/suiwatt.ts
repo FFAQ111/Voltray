@@ -14,6 +14,26 @@ export interface EventSummary {
   txDigest: string; // the publish tx; used to resolve the matching RewardVault
 }
 
+// EventSummary plus the per-event fields the list needs for status badges. EventCreated does
+// not emit the window times, so these come from reading the DREvent objects (see
+// queryEventsDetailed).
+export interface EventListItem extends EventSummary {
+  startTime: number;
+  endTime: number;
+  remainingUnits: number;
+  reclaimed: boolean;
+}
+
+export type ActivityKind = "funded" | "responded" | "earned";
+
+export interface Activity {
+  kind: ActivityKind;
+  eventId: string;
+  timestamp: number;
+  amount?: number; // µUSDC, for "earned"
+  rewardPerUnit?: number; // µUSDC, for "funded"
+}
+
 export interface DREventData {
   id: string;
   utility: string;
@@ -66,6 +86,106 @@ export async function queryEvents(client: SuiClient): Promise<EventSummary[]> {
       txDigest: e.id.txDigest,
     };
   });
+}
+
+// EventList needs window times + remaining + reclaim status, which EventCreated doesn't carry.
+// Batch-read the DREvent objects and fold in a single Reclaimed-event query. Frontend-only —
+// no contract change.
+export async function queryEventsDetailed(
+  client: SuiClient,
+): Promise<EventListItem[]> {
+  const summaries = await queryEvents(client);
+  if (summaries.length === 0) return [];
+
+  const reclaimedRes = await client.queryEvents({
+    query: { MoveEventType: fq("Reclaimed") },
+    order: "descending",
+    limit: 50,
+  });
+  const reclaimedIds = new Set(
+    reclaimedRes.data.map(
+      (e) => (e.parsedJson as Record<string, string>).event_id,
+    ),
+  );
+
+  const objs = await client.multiGetObjects({
+    ids: summaries.map((s) => s.eventId),
+    options: { showContent: true },
+  });
+  const byId = new Map<
+    string,
+    { startTime: number; endTime: number; remainingUnits: number }
+  >();
+  for (const o of objs) {
+    const content = o.data?.content;
+    if (!content || content.dataType !== "moveObject") continue;
+    const f = content.fields as Record<string, string>;
+    byId.set(o.data!.objectId, {
+      startTime: Number(f.start_time),
+      endTime: Number(f.end_time),
+      remainingUnits: Number(f.remaining_units),
+    });
+  }
+
+  return summaries.map((s) => ({
+    ...s,
+    startTime: byId.get(s.eventId)?.startTime ?? 0,
+    endTime: byId.get(s.eventId)?.endTime ?? 0,
+    remainingUnits: byId.get(s.eventId)?.remainingUnits ?? 0,
+    reclaimed: reclaimedIds.has(s.eventId),
+  }));
+}
+
+// One unified, time-sorted activity feed for the connected address: events it funded, its
+// responses, and its payouts. Assembled from the three event streams (the contract keeps no
+// per-account index by design — see CLAUDE.md critical rule).
+export async function queryMyActivity(
+  client: SuiClient,
+  address: string,
+): Promise<Activity[]> {
+  const ev = (name: string) =>
+    client.queryEvents({
+      query: { MoveEventType: fq(name) },
+      order: "descending",
+      limit: 50,
+    });
+  const [created, responded, settled] = await Promise.all([
+    ev("EventCreated"),
+    ev("MeterResponded"),
+    ev("Settled"),
+  ]);
+
+  const out: Activity[] = [];
+  for (const e of created.data) {
+    const j = e.parsedJson as Record<string, string>;
+    if (j.utility !== address) continue;
+    out.push({
+      kind: "funded",
+      eventId: j.event_id,
+      timestamp: Number(e.timestampMs ?? 0),
+      rewardPerUnit: Number(j.reward_per_unit),
+    });
+  }
+  for (const e of responded.data) {
+    const j = e.parsedJson as Record<string, string>;
+    if (j.responder !== address) continue;
+    out.push({
+      kind: "responded",
+      eventId: j.event_id,
+      timestamp: Number(j.timestamp),
+    });
+  }
+  for (const e of settled.data) {
+    const j = e.parsedJson as Record<string, string>;
+    if (j.responder !== address) continue;
+    out.push({
+      kind: "earned",
+      eventId: j.event_id,
+      timestamp: Number(e.timestampMs ?? 0),
+      amount: Number(j.amount),
+    });
+  }
+  return out.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export async function fetchEvent(
