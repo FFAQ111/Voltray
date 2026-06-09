@@ -92,8 +92,8 @@ export default function CreateEvent({
         <CardHeader>
           <CardTitle>Create DR Event</CardTitle>
           <CardDescription>
-            One PTB pulls USDC from your wallet and funds the reward vault
-            atomically. Get testnet USDC from faucet.circle.com.
+            Pulls USDC from your wallet and funds the reward vault in one
+            atomic transaction. Get testnet USDC from faucet.circle.com.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -145,7 +145,7 @@ export default function CreateEvent({
             disabled={isPending}
             onClick={submit}
           >
-            {isPending ? "Submitting…" : "Create (single PTB)"}
+            {isPending ? "Submitting…" : "Create & fund event"}
           </Button>
         </CardContent>
       </Card>
