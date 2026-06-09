@@ -333,6 +333,7 @@ function RespondPanel({
             <Select
               value={selected}
               onValueChange={(v) => v && setMeterId(v)}
+              disabled={status !== "active"}
               items={meters.map((m) => ({
                 value: m.id,
                 label: `${m.label} (${shortAddr(m.id)})`,
@@ -465,6 +466,7 @@ function SettlePanel({
                       min={1}
                       placeholder="saved kWh"
                       className="sm:w-32"
+                      disabled={disabled || paid || closed}
                       value={units[r.responder] ?? ""}
                       onChange={(e) =>
                         setUnits({
