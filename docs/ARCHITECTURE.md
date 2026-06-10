@@ -37,7 +37,7 @@ Voltray is a **pay-per-reduction bounty with a capped pool** — the same shape 
 
 **Why pay in USDC (stablecoin-denominated).** Rewards are denominated in USDC so a fixed `reward_per_unit` is a stable real-world incentive — a floating-price coin like SUI would make the per-kWh price drift. The contract is **generic over the reward coin `Coin<T>`**, so the package itself depends on no specific coin package; the frontend and oracle pass Circle USDC as the type argument (testnet USDC for the demo, mainnet USDC needs no contract change). Amounts are in µUSDC (6 decimals). See §5.
 
-**Reward sizing is the oracle's input, not an on-chain model.** `saved_units` is supplied at `settle` time by the trusted utility/oracle. A production system would derive it from a baseline-vs-actual measurement & verification (M&V) pipeline; that pipeline is explicitly out of MVP scope (§7).
+**Reward sizing is the charger's signed input, not an on-chain model.** `saved_units` is supplied at `settle` time, but it must carry an ed25519 signature from the event's authorised charger, verified on-chain before payout (`sui::ed25519::ed25519_verify`; see TRUST.md §5.1) — the operator can't fabricate the number. A production system would derive `saved_units` from a baseline-vs-actual measurement & verification (M&V) pipeline behind that same signature; that pipeline is explicitly out of MVP scope (§7).
 
 ---
 
@@ -116,12 +116,15 @@ public fun create_event<T>(
     target_reduction: u64,
     start_time: u64,
     end_time: u64,
+    charger_pubkey: vector<u8>, // 32-byte ed25519 key authorised to sign this event's readings
     ctx: &mut TxContext,
 )
 ```
 
 - Caller: utility
 - Creates a `DREvent` and a matching `RewardVault` funded by `reward_coin`; both are shared.
+- Stores `charger_pubkey` on the event (asserts length 32, E_BAD_PUBKEY); `settle` verifies session signatures against it (§3.4, TRUST.md §5.1).
+- Also asserts the vault covers the worst case (`reward_coin.value() >= reward_per_unit * target_reduction`, E_UNDERFUNDED) and `start_time < end_time` (E_INVALID_WINDOW).
 - Emits: `EventCreated { event_id, utility, reward_per_unit }`
 
 ---
@@ -170,21 +173,21 @@ public fun settle<T>(
     event: &mut DREvent,
     vault: &mut RewardVault<T>,
     responder: address,
-    meter_id: ID,         // for audit only; emitted into Settled event, not validated on-chain
+    meter_id: ID,
     saved_units: u64,
-    // MVP: admin-only — assert ctx.sender == event.utility
-    // TODO(post-MVP): replace with oracle signature verification / multisig
+    signature: vector<u8>, // charger ed25519 sig over event_id ‖ meter_id ‖ responder ‖ saved_units
     ctx: &mut TxContext,
 )
 ```
 
-- Caller: **MVP — `event.utility` only** (admin-only oracle). Asserts `ctx.sender() == event.utility` (E_NOT_UTILITY).
+- **Charger-signature gate (required):** rebuilds `event_id ‖ meter_id ‖ responder ‖ saved_units` and asserts `ed25519_verify(signature, event.charger_pubkey, msg)` (E_BAD_SIGNATURE) before any payout — so the submitter cannot fabricate `saved_units`, and `meter_id`/`responder` are bound by the signature rather than trusted blindly. See TRUST.md §5.1.
+- Caller: the `event.utility` submits the tx (asserts `ctx.sender() == event.utility`, E_NOT_UTILITY), but the value it pays is fixed by the charger signature, not its word.
 - **Vault/event binding check (required):** `assert!(vault.event_id == object::id(event), E_WRONG_VAULT)` — without this, the utility could drain any vault by passing a mismatched pair.
 - **Double-settle dedup (required):** a dynamic field keyed by `meter_id` on the Shared `RewardVault` marks a paid response, so the same `(event, meter)` cannot be paid twice (E_ALREADY_SETTLED). The vault is 1:1 with the event and `settle` already mutates it, so the marker adds no extra shared-lock contention. It lives on the vault rather than the Owned `SmartMeter` because `settle` cannot touch the responder's meter.
 - Allocation: **first-come-first-served**. Pays `min(saved_units, event.remaining_units) × reward_per_unit` from `vault`, then decrements `event.remaining_units`. Late responders may get partial or nothing.
-- `meter_id` is passed in by the oracle (read from the `MeterResponded` event log) purely so it can be re-emitted in `Settled` for downstream audit / Dashboard joins. The contract does **not** look up the meter object — `settle` cannot touch the user's Owned `SmartMeter`.
+- `meter_id` is passed in by the oracle (read from the `MeterResponded` event log) and is part of the signed message, so it is bound by the charger signature, not trusted blindly. The contract does **not** look up the meter object — `settle` cannot touch the user's Owned `SmartMeter`.
 - Emits: `Settled { event_id, meter_id, responder, amount, units_paid }`
-- **TODO(post-MVP):** Verified oracle signatures, possibly Seal-encrypted consumption reports.
+- **TODO(post-MVP):** authorise a *set* of charger keys per event; bind a meter to its charger (TRUST.md §3.1); M-of-N / multisig settlement (§5.2).
 
 ---
 
@@ -234,7 +237,8 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 
 | Decision | MVP choice | Post-MVP upgrade path |
 |---|---|---|
-| Oracle trust | Admin-only: only `event.utility` can call `settle` | Verified oracle signatures, multisig, or TEE/Seal attestation |
+| Oracle trust | The `event.utility` submits `settle`, but it can no longer name an arbitrary `saved_units`: the reading must carry the event charger's ed25519 signature (E_BAD_SIGNATURE) | M-of-N / multisig settlement so no single submitter key can settle a lie (TRUST.md §5.2); stake-and-slash (§5.3) |
+| Session authenticity (charger signature) | **Done — TRUST.md §5.1.** `create_event` registers a 32-byte authorised `charger_pubkey`; `settle` verifies an ed25519 signature over `event_id ‖ meter_id ‖ responder ‖ saved_units` with `sui::ed25519::ed25519_verify` before paying. The oracle holds the charger key server-side and signs the (simulated) OCPP session | Authorise a *set* of charger keys per event; bind a meter to its charger (§3.1); TEE-attested signing (§5.4) |
 | Reward allocation | First-come-first-served, capped by `remaining_units` | Pro-rata split, or auction-style bidding |
 | Meter hardware ID | Free-form `label: String`, no on-chain verification | Hardware-signed serials, TEE attestation, Seal-bound identity |
 | Vault topology | One `RewardVault` per `DREvent` (1:1) | Shared pool across events |

@@ -8,8 +8,9 @@
 import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { Transaction } from "@mysten/sui/transactions";
-import { client, fq, oracleKeypair, USDC_TYPE } from "./config";
+import { client, fq, oracleKeypair, chargerKeypair, USDC_TYPE } from "./config";
 import { fetchEvent, findVault, queryResponded, querySettled } from "./chain";
+import { signReading } from "./signer";
 import type { OcppSession } from "./simulator";
 
 function loadSessions(): OcppSession[] {
@@ -28,6 +29,7 @@ async function main() {
   if (!eventId) throw new Error("usage: pnpm settle <eventId>");
 
   const keypair = oracleKeypair();
+  const charger = chargerKeypair();
   const oracleAddr = keypair.getPublicKey().toSuiAddress();
 
   const [ev, responders, vaultId] = await Promise.all([
@@ -73,6 +75,13 @@ async function main() {
     }
 
     const savedUnits = Math.floor(s.energyKwh); // 1 unit == 1 kWh shifted
+    // The charger signs the reading; settle() rejects it if the signature doesn't verify.
+    const signature = await signReading(charger, {
+      eventId,
+      meterId: s.meterId,
+      responder: s.driver,
+      savedUnits,
+    });
     const tx = new Transaction();
     tx.moveCall({
       target: fq("settle"),
@@ -83,6 +92,7 @@ async function main() {
         tx.pure.address(s.driver),
         tx.pure.id(s.meterId),
         tx.pure.u64(savedUnits),
+        tx.pure.vector("u8", Array.from(signature)),
       ],
     });
     const res = await client.signAndExecuteTransaction({

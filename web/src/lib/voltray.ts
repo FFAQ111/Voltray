@@ -3,7 +3,8 @@
 // (see docs/ARCHITECTURE.md §5) — the contract stores no accumulating state.
 import type { SuiClient } from "@mysten/sui/client";
 import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
-import { CLOCK_ID, USDC_TYPE, fq } from "./config";
+import { fromHex } from "@mysten/sui/utils";
+import { CLOCK_ID, DEMO_CHARGER_PUBKEY, USDC_TYPE, fq } from "./config";
 
 // ===== Parsed shapes =====
 
@@ -325,6 +326,8 @@ export function buildCreateEvent(args: {
       tx.pure.u64(args.targetReduction),
       tx.pure.u64(args.startTime),
       tx.pure.u64(args.endTime),
+      // Authorise the demo charger to sign this event's settlement readings (TRUST.md §5.1).
+      tx.pure.vector("u8", Array.from(fromHex(DEMO_CHARGER_PUBKEY))),
     ],
   });
   return tx;
@@ -345,27 +348,10 @@ export function buildRespond(eventId: string, meterId: string): Transaction {
   return tx;
 }
 
-export function buildSettle(args: {
-  eventId: string;
-  vaultId: string;
-  responder: string;
-  meterId: string;
-  savedUnits: number;
-}): Transaction {
-  const tx = new Transaction();
-  tx.moveCall({
-    target: fq("settle"),
-    typeArguments: [USDC_TYPE],
-    arguments: [
-      tx.object(args.eventId),
-      tx.object(args.vaultId),
-      tx.pure.address(args.responder),
-      tx.pure.id(args.meterId),
-      tx.pure.u64(args.savedUnits),
-    ],
-  });
-  return tx;
-}
+// Settlement is performed by the oracle, not the web app: settle() now requires an ed25519
+// signature from the event's authorised charger over the reading, which the oracle produces
+// from the (simulated) OCPP session (oracle/src/run.ts, docs/TRUST.md §5.1). There is therefore
+// no in-browser settle builder.
 
 // Utility recovers the unspent vault balance once the window has closed (reclaim_remaining).
 export function buildReclaim(eventId: string, vaultId: string): Transaction {

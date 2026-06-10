@@ -3,10 +3,13 @@
 module voltray::voltray;
 
 use std::string::String;
+use sui::address;
 use sui::balance::{Self, Balance};
+use sui::bcs;
 use sui::clock::Clock;
 use sui::coin::{Self, Coin};
 use sui::dynamic_field as df;
+use sui::ed25519;
 use sui::event::emit;
 
 // ===== Errors =====
@@ -20,6 +23,8 @@ const E_ALREADY_SETTLED: u64 = 5;
 const E_EVENT_NOT_ENDED: u64 = 6;
 const E_UNDERFUNDED: u64 = 7;
 const E_INVALID_WINDOW: u64 = 8;
+const E_BAD_SIGNATURE: u64 = 9;
+const E_BAD_PUBKEY: u64 = 10;
 
 // ===== Objects =====
 
@@ -38,6 +43,9 @@ public struct DREvent has key {
     remaining_units: u64,
     start_time: u64,
     end_time: u64,
+    // ed25519 public key (32 bytes) of the charger authorised to sign this event's session
+    // readings. settle() rejects any saved_units not signed by this key (see docs/TRUST.md §5.1).
+    charger_pubkey: vector<u8>,
 }
 
 // Generic over the reward coin T so the same package settles in any coin — testnet/mainnet
@@ -91,6 +99,7 @@ public fun create_event<T>(
     target_reduction: u64,
     start_time: u64,
     end_time: u64,
+    charger_pubkey: vector<u8>,
     ctx: &mut TxContext,
 ) {
     // The vault must cover the worst-case payout (reclaim_remaining and settle both rely
@@ -98,6 +107,9 @@ public fun create_event<T>(
     // multiplication aborts on overflow, so it cannot be used to bypass the check.
     assert!(reward_coin.value() >= reward_per_unit * target_reduction, E_UNDERFUNDED);
     assert!(start_time < end_time, E_INVALID_WINDOW);
+    // An ed25519 public key is exactly 32 bytes; a wrong-length key would make every
+    // settle() unverifiable and strand the vault.
+    assert!(charger_pubkey.length() == 32, E_BAD_PUBKEY);
 
     let utility = ctx.sender();
     let event = DREvent {
@@ -108,6 +120,7 @@ public fun create_event<T>(
         remaining_units: target_reduction,
         start_time,
         end_time,
+        charger_pubkey,
     };
     let event_id = object::id(&event);
     let vault = RewardVault {
@@ -165,9 +178,35 @@ public fun respond(
     });
 }
 
-// TODO(post-MVP): replace admin-only check with oracle signature verification or multisig.
-// TODO(post-MVP): pro-rata or auction-style allocation instead of FCFS.
+// The utility submits the tx, but it can no longer name an arbitrary saved_units: the reading
+// must carry an ed25519 signature from the event's authorised charger key (docs/TRUST.md §5.1).
+// TODO(post-MVP): authorise a *set* of charger keys per event; bind a meter to its charger
+// (TRUST.md §3.1); M-of-N / multisig settlement (§5.2); pro-rata allocation instead of FCFS.
 public fun settle<T>(
+    event: &mut DREvent,
+    vault: &mut RewardVault<T>,
+    responder: address,
+    meter_id: ID,
+    saved_units: u64,
+    signature: vector<u8>,
+    ctx: &mut TxContext,
+) {
+    // Verify the charger signed exactly this reading. The message must match the TypeScript
+    // signer byte-for-byte: event_id ‖ meter_id ‖ responder ‖ saved_units (u64 LE).
+    let mut msg = object::id_to_bytes(&object::id(event));
+    msg.append(object::id_to_bytes(&meter_id));
+    msg.append(address::to_bytes(responder));
+    msg.append(bcs::to_bytes(&saved_units));
+    assert!(ed25519::ed25519_verify(&signature, &event.charger_pubkey, &msg), E_BAD_SIGNATURE);
+
+    settle_inner(event, vault, responder, meter_id, saved_units, ctx);
+}
+
+// Payout body, split out so the signature gate above and the test-only path below share it.
+// A valid charger signature over runtime object IDs cannot be precomputed inside a Move unit
+// test, so the payout/dedup/cap tests drive this directly via settle_for_testing; the real
+// settle() signature path is covered by dedicated signature tests and on testnet (TRUST.md §5.1).
+fun settle_inner<T>(
     event: &mut DREvent,
     vault: &mut RewardVault<T>,
     responder: address,
@@ -201,6 +240,20 @@ public fun settle<T>(
         amount,
         units_paid,
     });
+}
+
+// Test-only payout path that skips the charger-signature gate, so payout/dedup/cap/auth tests
+// don't need a valid ed25519 signature over runtime object IDs (see settle_inner).
+#[test_only]
+public fun settle_for_testing<T>(
+    event: &mut DREvent,
+    vault: &mut RewardVault<T>,
+    responder: address,
+    meter_id: ID,
+    saved_units: u64,
+    ctx: &mut TxContext,
+) {
+    settle_inner(event, vault, responder, meter_id, saved_units, ctx);
 }
 
 // After the window closes, the utility recovers the unspent vault balance (the worst-case

@@ -3,6 +3,7 @@ module voltray::voltray_tests;
 
 use sui::clock;
 use sui::coin::{Self, Coin};
+use sui::ed25519;
 use sui::sui::SUI;
 use sui::test_scenario as ts;
 use voltray::voltray::{Self, DREvent, RewardVault, SmartMeter};
@@ -16,6 +17,9 @@ const END: u64 = 5_000;
 const REWARD_PER_UNIT: u64 = 10;
 const TARGET_REDUCTION: u64 = 100;
 const VAULT_FUNDING: u64 = 1_000; // = TARGET_REDUCTION * REWARD_PER_UNIT
+// A syntactically valid 32-byte charger key. The payout/auth tests drive settle_for_testing,
+// which skips signature verification, so only the length matters here (create_event checks it).
+const CHARGER_PK: vector<u8> = b"01234567890123456789012345678901";
 
 // create_event aborts when the coin does not cover the worst-case payout
 // (reward_per_unit * target_reduction).
@@ -24,7 +28,7 @@ fun create_event_rejects_underfunded_vault() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING - 1, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
     scenario.end();
 }
@@ -35,8 +39,58 @@ fun create_event_rejects_inverted_window() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, END, START, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, END, START, CHARGER_PK, scenario.ctx());
     };
+    scenario.end();
+}
+
+// create_event aborts when the charger key is not exactly 32 bytes.
+#[test, expected_failure(abort_code = voltray::E_BAD_PUBKEY)]
+fun create_event_rejects_bad_pubkey() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, b"too-short", scenario.ctx());
+    };
+    scenario.end();
+}
+
+// sui::ed25519::ed25519_verify is the primitive settle() relies on: it accepts a valid
+// (pubkey, message, signature) and rejects any tampering. Vector from RFC 8032 §7.1 TEST 2.
+#[test]
+fun ed25519_verify_accepts_valid_and_rejects_tampered() {
+    let pk = x"3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c";
+    let sig =
+        x"92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00";
+    assert!(ed25519::ed25519_verify(&sig, &pk, &x"72"), 0);
+    // Flip the message byte -> the signature no longer matches.
+    assert!(!ed25519::ed25519_verify(&sig, &pk, &x"73"), 1);
+}
+
+// The real settle() rejects a reading whose signature does not verify against the event's
+// charger key. A valid signature is over runtime object IDs (unknowable when authoring a unit
+// test), so the positive path is covered on testnet per TRUST.md §5.1; here we prove the gate.
+#[test, expected_failure(abort_code = voltray::E_BAD_SIGNATURE)]
+fun settle_rejects_bad_signature() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
+    };
+
+    scenario.next_tx(UTILITY);
+    {
+        let mut event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
+        let event_id = object::id(&event);
+        // 64 zero bytes: well-formed length, but not a valid signature for this key/message.
+        let bad_sig =
+            x"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        voltray::settle(&mut event, &mut vault, USER, event_id, 30, bad_sig, scenario.ctx());
+        ts::return_shared(event);
+        ts::return_shared(vault);
+    };
+
     scenario.end();
 }
 
@@ -49,7 +103,7 @@ fun full_lifecycle_pays_responder() {
     // Utility funds and creates the event.
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     // User registers a meter.
@@ -80,7 +134,7 @@ fun full_lifecycle_pays_responder() {
         let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
 
-        voltray::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
 
         ts::return_shared(event);
         ts::return_shared(vault);
@@ -103,7 +157,7 @@ fun settle_caps_payout_at_remaining_units() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -113,7 +167,7 @@ fun settle_caps_payout_at_remaining_units() {
 
         let event_id = object::id(&event);
         // Ask for 150 units; only 100 remain, so payout is 100 * 10 = 1000.
-        voltray::settle(&mut event, &mut vault, USER, event_id, 150, scenario.ctx());
+        voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 150, scenario.ctx());
 
         ts::return_shared(event);
         ts::return_shared(vault);
@@ -135,7 +189,7 @@ fun settle_rejects_non_utility() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(USER); // USER is not the utility
@@ -143,7 +197,7 @@ fun settle_rejects_non_utility() {
         let mut event = scenario.take_shared<DREvent>();
         let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
-        voltray::settle(&mut event, &mut vault, USER, event_id, 10, scenario.ctx());
+        voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 10, scenario.ctx());
         ts::return_shared(event);
         ts::return_shared(vault);
     };
@@ -159,7 +213,7 @@ fun settle_rejects_mismatched_vault() {
     // Event A — keep its objects taken out of the shared inventory.
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
     scenario.next_tx(UTILITY);
     let mut event_a = scenario.take_shared<DREvent>();
@@ -168,7 +222,7 @@ fun settle_rejects_mismatched_vault() {
     // Event B — with A's objects out, these takes are unambiguous.
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
     scenario.next_tx(UTILITY);
     let event_b = scenario.take_shared<DREvent>();
@@ -176,7 +230,7 @@ fun settle_rejects_mismatched_vault() {
 
     // Settle event A against event B's vault -> E_WRONG_VAULT.
     let event_a_id = object::id(&event_a);
-    voltray::settle(&mut event_a, &mut vault_b, USER, event_a_id, 10, scenario.ctx());
+    voltray::settle_for_testing(&mut event_a, &mut vault_b, USER, event_a_id, 10, scenario.ctx());
 
     ts::return_shared(event_a);
     ts::return_shared(vault_a);
@@ -191,7 +245,7 @@ fun settle_rejects_double_settle() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -200,9 +254,9 @@ fun settle_rejects_double_settle() {
         let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
 
-        voltray::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
         // Second settle for the same meter aborts.
-        voltray::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
 
         ts::return_shared(event);
         ts::return_shared(vault);
@@ -217,7 +271,7 @@ fun respond_rejects_non_owner() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(USER);
@@ -250,7 +304,7 @@ fun respond_rejects_outside_window() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(USER);
@@ -281,7 +335,7 @@ fun respond_rejects_double_response() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(USER);
@@ -314,7 +368,7 @@ fun reclaim_returns_unspent_to_utility() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -348,7 +402,7 @@ fun reclaim_rejects_before_end() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -374,7 +428,7 @@ fun reclaim_rejects_non_utility() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
     };
 
     scenario.next_tx(USER); // not the utility

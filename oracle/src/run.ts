@@ -4,8 +4,9 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { Transaction } from "@mysten/sui/transactions";
-import { client, fq, oracleKeypair, USDC_TYPE } from "./config";
+import { client, fq, oracleKeypair, chargerKeypair, USDC_TYPE } from "./config";
 import { fetchEvent, findVault, queryResponded, querySettled } from "./chain";
+import { signReading } from "./signer";
 import type { OcppSession } from "./simulator";
 
 async function pickEvent(oracleAddr: string) {
@@ -32,6 +33,7 @@ async function pickEvent(oracleAddr: string) {
 
 async function main() {
   const keypair = oracleKeypair();
+  const charger = chargerKeypair();
   const oracleAddr = keypair.getPublicKey().toSuiAddress();
 
   const picked = await pickEvent(oracleAddr);
@@ -70,6 +72,13 @@ async function main() {
   // 2) Settle each on-chain. The contract pays from the vault and blocks double-payment.
   for (const s of sessions) {
     const savedUnits = Math.floor(s.energyKwh);
+    // The charger signs the reading; settle() rejects it if the signature doesn't verify.
+    const signature = await signReading(charger, {
+      eventId,
+      meterId: s.meterId,
+      responder: s.driver,
+      savedUnits,
+    });
     const tx = new Transaction();
     tx.moveCall({
       target: fq("settle"),
@@ -80,6 +89,7 @@ async function main() {
         tx.pure.address(s.driver),
         tx.pure.id(s.meterId),
         tx.pure.u64(savedUnits),
+        tx.pure.vector("u8", Array.from(signature)),
       ],
     });
     const res = await client.signAndExecuteTransaction({

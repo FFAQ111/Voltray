@@ -7,6 +7,7 @@
     "settle": "tsx src/run.ts",
     "settle:event": "tsx src/oracle.ts",
     "simulate": "tsx src/simulator.ts",
+    "gen:charger": "tsx src/gen-charger-key.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

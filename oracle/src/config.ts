@@ -7,7 +7,7 @@ import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 export const PACKAGE_ID =
-  "0xb2c0ba4ad08c558e5eb10625638ddb2ca102a1417990270c40885b9f1592bebb";
+  "0x4e211bfc5f344f541a235372cd9e22ef8a2947b5bfb4020a19858fbaaa25e964";
 export const MODULE = "voltray";
 export const NETWORK = "testnet" as const;
 
@@ -31,6 +31,21 @@ export function oracleKeypair(): Ed25519Keypair {
     throw new Error(
       "ORACLE_SECRET_KEY not set. Copy oracle/.env.example to oracle/.env and fill it:\n" +
         "  sui keytool export --key-identity <utility-address>  # copy the suiprivkey1... value",
+    );
+  }
+  return Ed25519Keypair.fromSecretKey(secret);
+}
+
+// The charger key that signs session readings. Separate from the oracle/utility key: the oracle
+// *submits* settle, but the charger *signs* the kWh, so the operator can't fabricate a reading.
+// Generate a demo pair with `pnpm gen:charger`; its public key is registered on-chain at
+// create_event (web/src/lib/config.ts DEMO_CHARGER_PUBKEY).
+export function chargerKeypair(): Ed25519Keypair {
+  const secret = process.env.CHARGER_SECRET_KEY;
+  if (!secret || secret.startsWith("suiprivkey1...")) {
+    throw new Error(
+      "CHARGER_SECRET_KEY not set. Copy oracle/.env.example to oracle/.env and fill it with the\n" +
+        "demo charger key (generate one with `pnpm gen:charger`).",
     );
   }
   return Ed25519Keypair.fromSecretKey(secret);

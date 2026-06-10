@@ -16,7 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -28,7 +27,6 @@ import {
   buildReclaim,
   buildRegisterMeter,
   buildRespond,
-  buildSettle,
   fetchEvent,
   fetchMeters,
   findVault,
@@ -129,14 +127,10 @@ export default function EventDetail({
 
   // The UI funds each vault at exactly target * reward (see CreateEvent), so the unspent
   // balance is remainingUnits * rewardPerUnit — until a reclaim empties it. Detecting the
-  // Reclaimed event lets us close out Settle/Reclaim instead of leaving buttons live that
-  // would only abort (settle) or no-op (reclaim) on-chain and waste the caller's gas.
+  // Reclaimed event lets us close out Reclaim instead of leaving the button live when it
+  // would only no-op on-chain and waste the caller's gas.
   const isReclaimed = (reclaimed.data ?? []).length > 0;
   const reclaimableUsdc = isReclaimed ? 0 : ev.remainingUnits * ev.rewardPerUnit;
-  const settleClosed = isReclaimed || ev.remainingUnits === 0;
-  const settleClosedReason = isReclaimed
-    ? "Unspent funds were reclaimed by the utility — settlement is closed."
-    : "All target units have been settled — the vault is empty.";
 
   return (
     <div className="space-y-6">
@@ -190,25 +184,21 @@ export default function EventDetail({
       {/* Utility (oracle) actions */}
       {isUtility && (
         <>
-          <SettlePanel
-            responders={respondedList}
-            settled={settledList}
-            disabled={isPending || !vault.data}
-            closed={settleClosed}
-            closedReason={settleClosedReason}
-            onSettle={(responder, meterId, savedUnits) =>
-              run(
-                buildSettle({
-                  eventId: ev.id,
-                  vaultId: vault.data!,
-                  responder,
-                  meterId,
-                  savedUnits,
-                }),
-                "Settled.",
-              )
-            }
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Settlement</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Payouts are settled by the oracle, not from here: it reads each charging session
+                and submits a <span className="text-foreground">charger-signed</span> reading. The
+                contract rejects any settlement whose reading isn't signed by this event's
+                authorised charger, so the operator can't type an arbitrary number. Run{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">pnpm settle</code>{" "}
+                in <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">oracle/</code>.
+              </p>
+            </CardContent>
+          </Card>
           <ReclaimPanel
             status={status}
             reclaimed={isReclaimed}
@@ -417,80 +407,3 @@ function ReclaimPanel({
   );
 }
 
-function SettlePanel({
-  responders,
-  settled,
-  disabled,
-  closed,
-  closedReason,
-  onSettle,
-}: {
-  responders: { responder: string; meterId: string }[];
-  settled: { responder: string }[];
-  disabled: boolean;
-  closed: boolean;
-  closedReason: string;
-  onSettle: (responder: string, meterId: string, savedUnits: number) => void;
-}) {
-  const [units, setUnits] = useState<Record<string, number>>({});
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Settle (utility / oracle)</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {responders.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No responders to settle.
-          </p>
-        ) : (
-          <>
-          {closed && (
-            <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              {closedReason}
-            </p>
-          )}
-          <ul className="space-y-3">
-            {responders.map((r, i) => {
-              const paid = settled.some((s) => s.responder === r.responder);
-              return (
-                <li key={i}>
-                  {i > 0 && <Separator className="mb-3" />}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <span className="flex-1 font-mono text-sm">
-                      {shortAddr(r.responder)}
-                    </span>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="saved kWh"
-                      className="sm:w-32"
-                      disabled={disabled || paid || closed}
-                      value={units[r.responder] ?? ""}
-                      onChange={(e) =>
-                        setUnits({
-                          ...units,
-                          [r.responder]: Number(e.target.value),
-                        })
-                      }
-                    />
-                    <Button
-                      disabled={disabled || paid || !units[r.responder] || closed}
-                      onClick={() =>
-                        onSettle(r.responder, r.meterId, units[r.responder])
-                      }
-                    >
-                      {paid ? "Settled" : "Settle"}
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}

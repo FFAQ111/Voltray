@@ -41,6 +41,7 @@ These hold regardless of who the oracle is, enforced in `contracts/sources/voltr
 | No meter responds twice to one event | per-`event_id` dynamic field on the owned meter (E_ALREADY_RESPONDED) |
 | Payout never exceeds the pre-funded pool | FCFS draw-down of `remaining_units`, capped balance |
 | Only the meter owner can respond for it | `assert!(meter.owner == ctx.sender())` (E_NOT_METER_OWNER) |
+| `saved_units` must be signed by the event's authorised charger | `ed25519_verify` over `(event_id, meter_id, responder, saved_units)` against `DREvent.charger_pubkey` (E_BAD_SIGNATURE) |
 
 None of these say the kWh number is real. They say nobody can be paid twice, out of
 turn, or from money that was never deposited. That is the floor, not the ceiling.
@@ -66,12 +67,16 @@ can enter.
 
 This is the load-bearing layer. `saved_units` is the energy of a charging session.
 
-- **Today (MVP):** sessions are synthesised by `oracle/src/simulator.ts`. They are not
-  real. Whoever controls that feed can mint rewards. This is fine for a demo and
-  dishonest to hide — the demo proves the *mechanism*, not the *data source*.
-- **Hardening path:** the session must arrive **signed by the charger's metering chip**
-  and the signature must be **verified before payout** (§5.1). Trust moves from "the
-  operator typed a number" to "the contract checked a charger's signature."
+- **Today (MVP):** the reading is **signed by the event's authorised charger key and
+  verified on-chain** before payout (§5.1, shipped). The operator can no longer type an
+  arbitrary `saved_units` — `settle` rejects anything not signed by the charger. The
+  sessions themselves are still synthesised by `oracle/src/simulator.ts` and signed by a
+  demo charger key the oracle holds, so what stays trusted has narrowed from "the operator's
+  word" to "the charger key": whoever holds that key can still sign a false reading. The demo
+  proves the *mechanism*; real key custody is the next layer.
+- **Hardening path:** move the charger key into tamper-resistant hardware / a TEE so a signed
+  reading also attests the firmware that produced it (§5.4), and feed real CDRs (§6) instead of
+  the simulator. Then trust rests on "the chip signed it," not "the operator holds the key."
 
 ### 3.3 Oracle honesty — *does the settler report truthfully?*
 
@@ -110,15 +115,20 @@ There is no purely on-chain fix for this. What exists is a set of ways to make i
 Each step is independently shippable. We implement (1) for the hackathon and document
 the rest as the path a mainnet pilot would walk.
 
-### 5.1 Charger-signed sessions, verified on-chain  *(planned for this hackathon)*
+### 5.1 Charger-signed sessions, verified on-chain  *(shipped)*
 
-- The charger holds an ed25519 key. It signs `(event_id, meter_id, responder, saved_units)`.
-- `settle` takes the signature + the charger public key, verifies with
-  `sui::ed25519::ed25519_verify`, and checks the key is one the event authorised.
+- The charger holds an ed25519 key and signs `event_id ‖ meter_id ‖ responder ‖ saved_units`
+  (`oracle/src/signer.ts`).
+- `create_event` registers the authorised `charger_pubkey` on the `DREvent` (one key per event
+  for the MVP). `settle` takes the signature, rebuilds the message, and verifies it with
+  `sui::ed25519::ed25519_verify` against that key (E_BAD_SIGNATURE) **before** paying.
 - A session with no valid charger signature is rejected on-chain — the operator can no
   longer pay an arbitrary number.
-- *Implementation note:* the one fiddly part is byte-for-byte agreement between the
-  TypeScript signer and the Move verifier on the serialised message. Test on testnet.
+- *Implementation note:* the fiddly part was byte-for-byte agreement between the TypeScript
+  signer and the Move verifier on the serialised message (u64 little-endian, 32-byte ids/address).
+  Covered by a Move test against an RFC-8032 vector plus a bad-signature reject test, and verified
+  end-to-end on testnet. **Next steps:** authorise a *set* of charger keys per event, and bind a
+  meter to its charger (§3.1) so a key can't sign for a meter it doesn't own.
 
 ### 5.2 Multiple oracles / multisig settlement
 
