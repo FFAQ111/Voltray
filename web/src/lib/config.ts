@@ -21,5 +21,5 @@ export const USDC_SYMBOL = "USDC";
 export const fq = (name: string) => `${PACKAGE_ID}::${MODULE}::${name}`;
 
 // Public repo, linked from the landing page.
-export const GITHUB_URL = "https://github.com/FFAQ111/SuiWatt";
+export const GITHUB_URL = "https://github.com/FFAQ111/Voltray";
 export const TRUST_DOC_URL = `${GITHUB_URL}/blob/main/docs/TRUST.md`;

@@ -75,7 +75,7 @@ Deployed to Sui Testnet:
 ## Running locally
 
 ```bash
-git clone https://github.com/FFAQ111/SuiWatt
+git clone https://github.com/FFAQ111/Voltray
 cd Voltray
 
 # Contracts
