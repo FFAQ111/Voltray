@@ -1,9 +1,9 @@
-// SuiWatt on-chain references. Update PACKAGE_ID after every fresh publish that
+// Voltray on-chain references. Update PACKAGE_ID after every fresh publish that
 // changes the ID (see docs/DEPLOY.md). Upgrades keep the same ID — no change needed.
 export const PACKAGE_ID =
-  "0xdbcd522332065af749ffb871d4ee54fe2681752f190dcf50c33427ece55596a4";
+  "0xb2c0ba4ad08c558e5eb10625638ddb2ca102a1417990270c40885b9f1592bebb";
 
-export const MODULE = "suiwatt";
+export const MODULE = "voltray";
 export const NETWORK = "testnet";
 
 // Shared system Clock object, required by `respond` and `reclaim_remaining`.

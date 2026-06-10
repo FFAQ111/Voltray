@@ -1,4 +1,4 @@
-# SuiWatt Trust & Integration Model
+# Voltray Trust & Integration Model
 
 > Where the data comes from, who you have to trust to believe it, and what it would
 > take to trust them less. This is the honest companion to `ARCHITECTURE.md`: that
@@ -9,7 +9,7 @@
 
 ## 1. The oracle problem, stated plainly
 
-A blockchain cannot see the physical world. SuiWatt pays a user for reducing grid
+A blockchain cannot see the physical world. Voltray pays a user for reducing grid
 consumption, but "reduced consumption" is a fact about a meter in someone's garage,
 not a fact the chain can check. Someone off-chain has to **attest** to it. Whoever
 that someone is, they are a trust assumption.
@@ -31,7 +31,7 @@ this document is about the second.
 
 ## 2. What the contract already guarantees (structural)
 
-These hold regardless of who the oracle is, enforced in `contracts/sources/suiwatt.move`:
+These hold regardless of who the oracle is, enforced in `contracts/sources/voltray.move`:
 
 | Invariant | Mechanism |
 |---|---|
@@ -137,7 +137,7 @@ and attestation-verification plumbing required. Roadmap, not MVP.
 
 ---
 
-## 6. How SuiWatt actually plugs into the real world
+## 6. How Voltray actually plugs into the real world
 
 The most common misread of this project is "you need to own chargers." You do not.
 You integrate at the **data layer**, and the protocol you integrate with is **not the
@@ -152,7 +152,7 @@ one most people name first**.
   energy delivered (Wh), start/end timestamps. `oracle/src/simulator.ts` mimics exactly
   this record.
 - **OCPI (Open Charge Point Interface)** is the language between a **CPO and a third
-  party** — roaming hubs, e-mobility providers, and settlement layers like SuiWatt. Its
+  party** — roaming hubs, e-mobility providers, and settlement layers like Voltray. Its
   **CDR (Charge Detail Record)** is the billing-grade record of one completed session.
 
 **So the realistic integration is OCPI, not OCPP.** To act as a settlement layer you

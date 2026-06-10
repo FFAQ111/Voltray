@@ -1,6 +1,6 @@
-/// SuiWatt: on-chain Demand Response (DR) for a hackathon MVP.
+/// Voltray: on-chain Demand Response (DR) for a hackathon MVP.
 /// See docs/ARCHITECTURE.md for object schema, settlement model, and MVP decisions.
-module suiwatt::suiwatt;
+module voltray::voltray;
 
 use std::string::String;
 use sui::balance::{Self, Balance};

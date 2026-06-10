@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { queryEventsDetailed, type EventListItem } from "../lib/suiwatt";
+import { queryEventsDetailed, type EventListItem } from "../lib/voltray";
 import { formatUsdc, shortAddr, windowStatus } from "../lib/format";
 
 const STATUS_BADGE: Record<ReturnType<typeof windowStatus>, string> = {

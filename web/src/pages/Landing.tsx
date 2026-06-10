@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GITHUB_URL, TRUST_DOC_URL } from "../lib/config";
+import { VoltrayMark } from "@/components/Logo";
 
 // lucide-react dropped brand marks, so the GitHub logo is an inline SVG.
 function GithubMark({ className }: { className?: string }) {
@@ -74,11 +75,9 @@ export default function Landing({ onLaunch }: { onLaunch: () => void }) {
           className="pointer-events-none absolute -top-10 h-72 w-72 rounded-full bg-primary/20 blur-3xl"
         />
         <div className="relative flex flex-col items-center gap-6 duration-700 animate-in fade-in slide-in-from-bottom-3">
-          <img
-            src="/suiwatt-logo.png"
-            alt="SuiWatt"
-            className="size-20 rounded-2xl shadow-lg shadow-primary/20"
-          />
+          <span className="flex size-20 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <VoltrayMark className="size-12" />
+          </span>
           <Badge variant="secondary" className="gap-1.5">
             Sui Overflow 2026 · DeFi &amp; Payments
           </Badge>
@@ -86,7 +85,7 @@ export default function Landing({ onLaunch }: { onLaunch: () => void }) {
             Get paid to ease the grid.
           </h1>
           <p className="max-w-xl text-base text-muted-foreground sm:text-lg">
-            SuiWatt is on-chain demand response: utilities pre-fund reward
+            Voltray is on-chain demand response: utilities pre-fund reward
             vaults, people cut consumption when the grid is stressed, and
             payouts settle automatically in USDC on Sui.
           </p>
@@ -181,7 +180,7 @@ export default function Landing({ onLaunch }: { onLaunch: () => void }) {
               </h2>
               <p className="text-sm text-muted-foreground">
                 The hard part of any energy-DR system is proving a real-world
-                reduction actually happened. SuiWatt is explicit about what the
+                reduction actually happened. Voltray is explicit about what the
                 chain guarantees — structural correctness — versus what it must
                 trust — the meter reading — and ships a trust-minimization
                 roadmap: hardware-signed readings → issuer attestation →

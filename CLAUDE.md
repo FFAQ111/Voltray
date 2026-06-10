@@ -1,4 +1,4 @@
-# SuiWatt
+# Voltray
 
 Decentralized energy Demand Response (DR) system on Sui. Utilities post DR events and pre-fund a reward vault; users register a smart meter and respond; an oracle settles payouts on-chain when participants reduce consumption.
 
@@ -17,11 +17,11 @@ Decentralized energy Demand Response (DR) system on Sui. Utilities post DR event
 ## Repo structure
 
 ```
-SuiWatt/
-├── contracts/                # Sui Move package — directory name; package name in Move.toml is "suiwatt"
-│   ├── Move.toml             # [package] name = "suiwatt"
-│   ├── sources/suiwatt.move  # All 3 structs + 4 entry functions in one file (< 200 lines)
-│   └── tests/suiwatt_tests.move
+Voltray/
+├── contracts/                # Sui Move package — directory name; package name in Move.toml is "voltray"
+│   ├── Move.toml             # [package] name = "voltray"
+│   ├── sources/voltray.move  # All 3 structs + 4 entry functions in one file (< 200 lines)
+│   └── tests/voltray_tests.move
 ├── web/                      # React + TS + Vite + @mysten/dapp-kit, managed with pnpm
 │   └── src/
 │       ├── pages/            # Dashboard, EventList, CreateEvent, EventDetail
@@ -38,7 +38,7 @@ SuiWatt/
 **Monorepo policy: no root `package.json`, no workspace tooling.** `contracts/` (Move) and `web/` (JS) have disjoint toolchains and no shared dependencies — a workspace adds setup cost with zero hoisting benefit. Each subdirectory is self-contained.
 
 **Scaffold commands (one-time, for reference):**
-- Contracts: from repo root, `sui move new contracts`, then edit `contracts/Move.toml` to set `name = "suiwatt"`.
+- Contracts: from repo root, `sui move new contracts`, then edit `contracts/Move.toml` to set `name = "voltray"`.
 - Frontend: from repo root, `pnpm create vite web --template react-ts`, then add `@mysten/dapp-kit @mysten/sui @tanstack/react-query`.
 
 ---

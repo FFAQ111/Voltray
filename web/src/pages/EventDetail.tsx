@@ -36,7 +36,7 @@ import {
   queryResponded,
   querySettled,
   type EventSummary,
-} from "../lib/suiwatt";
+} from "../lib/voltray";
 import { formatUsdc, formatTime, shortAddr, windowStatus } from "../lib/format";
 
 const STATUS_BADGE: Record<ReturnType<typeof windowStatus>, string> = {

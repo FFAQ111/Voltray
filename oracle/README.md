@@ -1,6 +1,6 @@
-# SuiWatt Oracle
+# Voltray Oracle
 
-Off-chain settlement oracle for SuiWatt. It replaces the manual "settle" button in the
+Off-chain settlement oracle for Voltray. It replaces the manual "settle" button in the
 frontend: instead of a human typing how many kWh a driver shifted, the oracle reads
 charging-session evidence and settles each eligible driver on-chain automatically.
 

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ConnectButton } from "@mysten/dapp-kit";
-import { Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { EventSummary } from "./lib/suiwatt";
+import { VoltrayMark } from "@/components/Logo";
+import type { EventSummary } from "./lib/voltray";
 import Dashboard from "./pages/Dashboard";
 import EventList from "./pages/EventList";
 import CreateEvent from "./pages/CreateEvent";
@@ -37,9 +37,9 @@ function App() {
             className="flex items-center gap-2"
           >
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Zap className="size-5" />
+              <VoltrayMark className="size-5" />
             </span>
-            <span className="text-lg font-semibold tracking-tight">SuiWatt</span>
+            <span className="text-lg font-semibold tracking-tight">Voltray</span>
           </button>
 
           <nav className="flex flex-1 items-center gap-1">

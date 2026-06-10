@@ -14,7 +14,7 @@ import {
   fetchMeters,
   queryMyActivity,
   type ActivityKind,
-} from "../lib/suiwatt";
+} from "../lib/voltray";
 import { formatUsdc, formatTime, shortAddr } from "../lib/format";
 
 // Reduced-scope Dashboard: a personal summary derived off-chain by scanning the event log

@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { buildCreateEvent, type EventSummary } from "../lib/suiwatt";
+import { buildCreateEvent, type EventSummary } from "../lib/voltray";
 import { formatUsdc } from "../lib/format";
 
 export default function CreateEvent({
@@ -61,7 +61,7 @@ export default function CreateEvent({
           const created = res.objectChanges?.find(
             (c) =>
               c.type === "created" &&
-              c.objectType.endsWith("::suiwatt::DREvent"),
+              c.objectType.endsWith("::voltray::DREvent"),
           );
           onCreated(
             created && "objectId" in created

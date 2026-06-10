@@ -1,4 +1,4 @@
-// Domain helpers over the SuiWatt package: event-log queries, object reads, and
+// Domain helpers over the Voltray package: event-log queries, object reads, and
 // transaction builders. Aggregates are derived here by scanning Sui events
 // (see docs/ARCHITECTURE.md §5) — the contract stores no accumulating state.
 import type { SuiClient } from "@mysten/sui/client";
@@ -220,7 +220,7 @@ export async function findVault(
   });
   const change = tx.objectChanges?.find(
     // RewardVault is generic, so its type ends with `<...::usdc::USDC>` — match the prefix.
-    (c) => c.type === "created" && c.objectType.includes("::suiwatt::RewardVault<"),
+    (c) => c.type === "created" && c.objectType.includes("::voltray::RewardVault<"),
   );
   return change && "objectId" in change ? change.objectId : null;
 }

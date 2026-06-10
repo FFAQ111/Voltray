@@ -1,11 +1,11 @@
 #[test_only]
-module suiwatt::suiwatt_tests;
+module voltray::voltray_tests;
 
 use sui::clock;
 use sui::coin::{Self, Coin};
 use sui::sui::SUI;
 use sui::test_scenario as ts;
-use suiwatt::suiwatt::{Self, DREvent, RewardVault, SmartMeter};
+use voltray::voltray::{Self, DREvent, RewardVault, SmartMeter};
 
 const UTILITY: address = @0xACE;
 const USER: address = @0xBEEF;
@@ -19,23 +19,23 @@ const VAULT_FUNDING: u64 = 1_000; // = TARGET_REDUCTION * REWARD_PER_UNIT
 
 // create_event aborts when the coin does not cover the worst-case payout
 // (reward_per_unit * target_reduction).
-#[test, expected_failure(abort_code = suiwatt::E_UNDERFUNDED)]
+#[test, expected_failure(abort_code = voltray::E_UNDERFUNDED)]
 fun create_event_rejects_underfunded_vault() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING - 1, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
     scenario.end();
 }
 
 // create_event aborts on an inverted or empty window (start >= end).
-#[test, expected_failure(abort_code = suiwatt::E_INVALID_WINDOW)]
+#[test, expected_failure(abort_code = voltray::E_INVALID_WINDOW)]
 fun create_event_rejects_inverted_window() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, END, START, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, END, START, scenario.ctx());
     };
     scenario.end();
 }
@@ -49,13 +49,13 @@ fun full_lifecycle_pays_responder() {
     // Utility funds and creates the event.
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     // User registers a meter.
     scenario.next_tx(USER);
     {
-        suiwatt::register_meter(b"meter-1".to_string(), scenario.ctx());
+        voltray::register_meter(b"meter-1".to_string(), scenario.ctx());
     };
 
     // User responds inside the window.
@@ -66,7 +66,7 @@ fun full_lifecycle_pays_responder() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(2_000);
 
-        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+        voltray::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         scenario.return_to_sender(meter);
@@ -80,7 +80,7 @@ fun full_lifecycle_pays_responder() {
         let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
 
-        suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        voltray::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
 
         ts::return_shared(event);
         ts::return_shared(vault);
@@ -103,7 +103,7 @@ fun settle_caps_payout_at_remaining_units() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -113,7 +113,7 @@ fun settle_caps_payout_at_remaining_units() {
 
         let event_id = object::id(&event);
         // Ask for 150 units; only 100 remain, so payout is 100 * 10 = 1000.
-        suiwatt::settle(&mut event, &mut vault, USER, event_id, 150, scenario.ctx());
+        voltray::settle(&mut event, &mut vault, USER, event_id, 150, scenario.ctx());
 
         ts::return_shared(event);
         ts::return_shared(vault);
@@ -130,12 +130,12 @@ fun settle_caps_payout_at_remaining_units() {
 }
 
 // Only event.utility may settle.
-#[test, expected_failure(abort_code = suiwatt::E_NOT_UTILITY)]
+#[test, expected_failure(abort_code = voltray::E_NOT_UTILITY)]
 fun settle_rejects_non_utility() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(USER); // USER is not the utility
@@ -143,7 +143,7 @@ fun settle_rejects_non_utility() {
         let mut event = scenario.take_shared<DREvent>();
         let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
-        suiwatt::settle(&mut event, &mut vault, USER, event_id, 10, scenario.ctx());
+        voltray::settle(&mut event, &mut vault, USER, event_id, 10, scenario.ctx());
         ts::return_shared(event);
         ts::return_shared(vault);
     };
@@ -152,14 +152,14 @@ fun settle_rejects_non_utility() {
 }
 
 // settle aborts if the vault does not belong to the event.
-#[test, expected_failure(abort_code = suiwatt::E_WRONG_VAULT)]
+#[test, expected_failure(abort_code = voltray::E_WRONG_VAULT)]
 fun settle_rejects_mismatched_vault() {
     let mut scenario = ts::begin(UTILITY);
 
     // Event A — keep its objects taken out of the shared inventory.
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
     scenario.next_tx(UTILITY);
     let mut event_a = scenario.take_shared<DREvent>();
@@ -168,7 +168,7 @@ fun settle_rejects_mismatched_vault() {
     // Event B — with A's objects out, these takes are unambiguous.
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
     scenario.next_tx(UTILITY);
     let event_b = scenario.take_shared<DREvent>();
@@ -176,7 +176,7 @@ fun settle_rejects_mismatched_vault() {
 
     // Settle event A against event B's vault -> E_WRONG_VAULT.
     let event_a_id = object::id(&event_a);
-    suiwatt::settle(&mut event_a, &mut vault_b, USER, event_a_id, 10, scenario.ctx());
+    voltray::settle(&mut event_a, &mut vault_b, USER, event_a_id, 10, scenario.ctx());
 
     ts::return_shared(event_a);
     ts::return_shared(vault_a);
@@ -186,12 +186,12 @@ fun settle_rejects_mismatched_vault() {
 }
 
 // The same meter cannot be settled twice for one event (on-chain payout dedup on the vault).
-#[test, expected_failure(abort_code = suiwatt::E_ALREADY_SETTLED)]
+#[test, expected_failure(abort_code = voltray::E_ALREADY_SETTLED)]
 fun settle_rejects_double_settle() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -200,9 +200,9 @@ fun settle_rejects_double_settle() {
         let mut vault = scenario.take_shared<RewardVault<SUI>>();
         let event_id = object::id(&event);
 
-        suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        voltray::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
         // Second settle for the same meter aborts.
-        suiwatt::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        voltray::settle(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
 
         ts::return_shared(event);
         ts::return_shared(vault);
@@ -212,17 +212,17 @@ fun settle_rejects_double_settle() {
 }
 
 // respond aborts if the caller does not own the meter.
-#[test, expected_failure(abort_code = suiwatt::E_NOT_METER_OWNER)]
+#[test, expected_failure(abort_code = voltray::E_NOT_METER_OWNER)]
 fun respond_rejects_non_owner() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(USER);
     {
-        suiwatt::register_meter(b"meter-1".to_string(), scenario.ctx());
+        voltray::register_meter(b"meter-1".to_string(), scenario.ctx());
     };
 
     // A different address tries to respond with USER's meter.
@@ -234,7 +234,7 @@ fun respond_rejects_non_owner() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(2_000);
 
-        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+        voltray::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         ts::return_shared(event);
@@ -245,17 +245,17 @@ fun respond_rejects_non_owner() {
 }
 
 // respond aborts outside the [start, end] window.
-#[test, expected_failure(abort_code = suiwatt::E_OUTSIDE_WINDOW)]
+#[test, expected_failure(abort_code = voltray::E_OUTSIDE_WINDOW)]
 fun respond_rejects_outside_window() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(USER);
     {
-        suiwatt::register_meter(b"meter-1".to_string(), scenario.ctx());
+        voltray::register_meter(b"meter-1".to_string(), scenario.ctx());
     };
 
     scenario.next_tx(USER);
@@ -265,7 +265,7 @@ fun respond_rejects_outside_window() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(END + 1); // past the window
 
-        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+        voltray::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         scenario.return_to_sender(meter);
@@ -276,17 +276,17 @@ fun respond_rejects_outside_window() {
 }
 
 // The same meter cannot respond twice to the same event (on-chain dedup on the meter).
-#[test, expected_failure(abort_code = suiwatt::E_ALREADY_RESPONDED)]
+#[test, expected_failure(abort_code = voltray::E_ALREADY_RESPONDED)]
 fun respond_rejects_double_response() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(USER);
     {
-        suiwatt::register_meter(b"meter-1".to_string(), scenario.ctx());
+        voltray::register_meter(b"meter-1".to_string(), scenario.ctx());
     };
 
     scenario.next_tx(USER);
@@ -296,9 +296,9 @@ fun respond_rejects_double_response() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(2_000);
 
-        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+        voltray::respond(&event, &mut meter, &clock, scenario.ctx());
         // Second response to the same event aborts.
-        suiwatt::respond(&event, &mut meter, &clock, scenario.ctx());
+        voltray::respond(&event, &mut meter, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         scenario.return_to_sender(meter);
@@ -314,7 +314,7 @@ fun reclaim_returns_unspent_to_utility() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -324,7 +324,7 @@ fun reclaim_returns_unspent_to_utility() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(END + 1); // window closed
 
-        suiwatt::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
+        voltray::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         ts::return_shared(event);
@@ -343,12 +343,12 @@ fun reclaim_returns_unspent_to_utility() {
 }
 
 // reclaim aborts while the window is still open (END is inclusive, so now == END is "not ended").
-#[test, expected_failure(abort_code = suiwatt::E_EVENT_NOT_ENDED)]
+#[test, expected_failure(abort_code = voltray::E_EVENT_NOT_ENDED)]
 fun reclaim_rejects_before_end() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(UTILITY);
@@ -358,7 +358,7 @@ fun reclaim_rejects_before_end() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(END); // still inside the window
 
-        suiwatt::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
+        voltray::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         ts::return_shared(event);
@@ -369,12 +369,12 @@ fun reclaim_rejects_before_end() {
 }
 
 // reclaim is restricted to the event's utility.
-#[test, expected_failure(abort_code = suiwatt::E_NOT_UTILITY)]
+#[test, expected_failure(abort_code = voltray::E_NOT_UTILITY)]
 fun reclaim_rejects_non_utility() {
     let mut scenario = ts::begin(UTILITY);
     {
         let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
-        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
     };
 
     scenario.next_tx(USER); // not the utility
@@ -384,7 +384,7 @@ fun reclaim_rejects_non_utility() {
         let mut clock = clock::create_for_testing(scenario.ctx());
         clock.set_for_testing(END + 1);
 
-        suiwatt::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
+        voltray::reclaim_remaining(&event, &mut vault, &clock, scenario.ctx());
 
         clock.destroy_for_testing();
         ts::return_shared(event);

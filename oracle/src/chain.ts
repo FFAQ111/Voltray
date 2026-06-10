@@ -1,4 +1,4 @@
-// Read helpers over the SuiWatt package. Aggregates are derived by scanning Sui events —
+// Read helpers over the Voltray package. Aggregates are derived by scanning Sui events —
 // the contract stores no accumulating state (see docs/ARCHITECTURE.md and CLAUDE.md).
 import { client, fq } from "./config";
 
@@ -69,7 +69,7 @@ export async function fetchEvent(eventId: string): Promise<EventWindow> {
 }
 
 // The RewardVault is created in the same tx as its DREvent, so resolve it from that
-// tx's object changes rather than needing an indexer (mirrors web/src/lib/suiwatt.ts).
+// tx's object changes rather than needing an indexer (mirrors web/src/lib/voltray.ts).
 export async function findVault(eventId: string): Promise<string> {
   const res = await client.queryEvents({
     query: { MoveEventType: fq("EventCreated") },
@@ -89,7 +89,7 @@ export async function findVault(eventId: string): Promise<string> {
       c.type === "created" &&
       // RewardVault is now generic, so its type carries a `<...::usdc::USDC>` suffix —
       // match the prefix rather than the whole string.
-      c.objectType.includes("::suiwatt::RewardVault<"),
+      c.objectType.includes("::voltray::RewardVault<"),
   );
   if (!change || !("objectId" in change))
     throw new Error(`RewardVault not found for ${eventId}`);

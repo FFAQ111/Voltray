@@ -1,8 +1,8 @@
 {
-  "name": "suiwatt-oracle",
+  "name": "voltray-oracle",
   "private": true,
   "type": "module",
-  "description": "Off-chain settlement oracle for SuiWatt: reads OCPP charging sessions and settles DR rewards on Sui testnet.",
+  "description": "Off-chain settlement oracle for Voltray: reads OCPP charging sessions and settles DR rewards on Sui testnet.",
   "scripts": {
     "settle": "tsx src/run.ts",
     "settle:event": "tsx src/oracle.ts",

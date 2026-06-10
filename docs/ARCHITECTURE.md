@@ -1,4 +1,4 @@
-# SuiWatt Architecture
+# Voltray Architecture
 
 > On-chain design for a decentralized energy Demand Response (DR) system.
 > This document is a working skeleton — the source of truth is `contracts/`.
@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-SuiWatt moves the traditional DR flow — "the utility pays users to reduce consumption" — onto Sui as a conditional, auto-settled payment.
+Voltray moves the traditional DR flow — "the utility pays users to reduce consumption" — onto Sui as a conditional, auto-settled payment.
 
 **Roles**
 - **Utility** — publishes DR events and funds the reward pool
@@ -28,7 +28,7 @@ Oracle ──settle──▶ scan event log → pay out from RewardVault
 
 ### 1.1 Economic model
 
-SuiWatt is a **pay-per-reduction bounty with a capped pool** — the same shape as a real-world DR capacity payment.
+Voltray is a **pay-per-reduction bounty with a capped pool** — the same shape as a real-world DR capacity payment.
 
 - **1 unit = 1 kWh of consumption reduced below the user's baseline.** This is the physical meaning of a "unit" everywhere in the contract.
 - **`reward_per_unit`** — the price (in µUSDC, 6 decimals) the utility offers per kWh saved.
