@@ -17,6 +17,29 @@ const REWARD_PER_UNIT: u64 = 10;
 const TARGET_REDUCTION: u64 = 100;
 const VAULT_FUNDING: u64 = 1_000; // = TARGET_REDUCTION * REWARD_PER_UNIT
 
+// create_event aborts when the coin does not cover the worst-case payout
+// (reward_per_unit * target_reduction).
+#[test, expected_failure(abort_code = suiwatt::E_UNDERFUNDED)]
+fun create_event_rejects_underfunded_vault() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING - 1, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, scenario.ctx());
+    };
+    scenario.end();
+}
+
+// create_event aborts on an inverted or empty window (start >= end).
+#[test, expected_failure(abort_code = suiwatt::E_INVALID_WINDOW)]
+fun create_event_rejects_inverted_window() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        suiwatt::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, END, START, scenario.ctx());
+    };
+    scenario.end();
+}
+
 // Drive create -> register -> respond -> settle and assert the responder is paid
 // min(saved_units, remaining) * reward_per_unit.
 #[test]

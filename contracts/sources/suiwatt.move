@@ -18,6 +18,8 @@ const E_WRONG_VAULT: u64 = 3;
 const E_ALREADY_RESPONDED: u64 = 4;
 const E_ALREADY_SETTLED: u64 = 5;
 const E_EVENT_NOT_ENDED: u64 = 6;
+const E_UNDERFUNDED: u64 = 7;
+const E_INVALID_WINDOW: u64 = 8;
 
 // ===== Objects =====
 
@@ -91,6 +93,12 @@ public fun create_event<T>(
     end_time: u64,
     ctx: &mut TxContext,
 ) {
+    // The vault must cover the worst-case payout (reclaim_remaining and settle both rely
+    // on this), and respond/reclaim are meaningless on an inverted window. The u64
+    // multiplication aborts on overflow, so it cannot be used to bypass the check.
+    assert!(reward_coin.value() >= reward_per_unit * target_reduction, E_UNDERFUNDED);
+    assert!(start_time < end_time, E_INVALID_WINDOW);
+
     let utility = ctx.sender();
     let event = DREvent {
         id: object::new(ctx),
