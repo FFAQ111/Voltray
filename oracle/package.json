@@ -5,6 +5,7 @@
   "description": "Off-chain settlement oracle for Voltray: reads OCPP charging sessions and settles DR rewards on Sui testnet.",
   "scripts": {
     "settle": "tsx src/run.ts",
+    "daemon": "tsx src/daemon.ts",
     "settle:event": "tsx src/oracle.ts",
     "simulate": "tsx src/simulator.ts",
     "gen:charger": "tsx src/gen-charger-key.ts",

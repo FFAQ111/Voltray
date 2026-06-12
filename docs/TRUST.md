@@ -217,8 +217,8 @@ Going the OCPI route means you never run a CSMS, so you rarely need an always-on
 
 | Stage | Host | Why |
 |---|---|---|
-| Demo | none — manual `pnpm settle` | a cloud deploy only adds failure surface |
-| Post-hackathon pilot | **Railway / Render / Fly.io** — one worker + cron + secret store + optional Postgres | fastest to stand up, lightest to operate |
+| Demo | manual `pnpm settle`, or the Fly.io worker below | a cloud deploy is optional here, not required |
+| Post-hackathon pilot *(current)* | **Fly.io** — one always-on worker (`oracle/src/daemon.ts`, 30 s poll), secrets in the Fly secret store | fastest to stand up, lightest to operate (see DEPLOY.md "Oracle deployment") |
 | Scale / compliance | **AWS** — Lambda + EventBridge for settlement, Fargate/EC2 only if a CSMS is needed, KMS for keys | AWS earns its operational weight at scale, not before |
 
 ### 7.3 The security red line
@@ -227,6 +227,11 @@ The utility key must never sit in plaintext env on a host. Use the platform secr
 store at minimum, KMS/Secrets Manager properly. The real fix is §5.2: once settlement
 is M-of-N, there is no single hot key to steal. Hosting choice does not solve key
 custody — removing the single key does.
+
+*Where we are:* the deployed worker keeps both hot keys (utility + charger) in Fly's
+secret store — encrypted at rest, injected as env at runtime, excluded from the image
+(`oracle/.dockerignore`). That meets the "platform secret store at minimum" bar and no
+more: a single stolen key still settles lies until §5.2 lands.
 
 ### 7.4 The landing page needs no backend
 

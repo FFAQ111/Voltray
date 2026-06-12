@@ -2,11 +2,16 @@
 //
 // Source of truth for PACKAGE_ID is web/src/lib/config.ts and docs/DEPLOY.md. The oracle
 // is a self-contained package (no workspace — see CLAUDE.md), so the ID is mirrored here;
-// keep it in sync after any fresh publish that changes the ID.
+// keep it in sync after any fresh publish that changes the ID. A hosted daemon can override
+// it via env (`fly secrets set PACKAGE_ID=0x...`) instead of needing a rebuild — this is the
+// whole upgrade path after a republish/rename (docs/DEPLOY.md).
+// Loaded here (not only in the entrypoints) because PACKAGE_ID is read at module-eval time.
+import "dotenv/config";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 export const PACKAGE_ID =
+  process.env.PACKAGE_ID ??
   "0x4e211bfc5f344f541a235372cd9e22ef8a2947b5bfb4020a19858fbaaa25e964";
 export const MODULE = "voltray";
 export const NETWORK = "testnet" as const;

@@ -1,0 +1,5 @@
+# .env holds the oracle (utility) and charger secret keys — it must never enter the
+# image. Secrets are injected at runtime via `fly secrets set` (docs/TRUST.md §7.3).
+.env
+node_modules
+sessions.json

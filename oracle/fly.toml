@@ -1,0 +1,15 @@
+# Fly.io config for the Voltray settlement daemon (docs/DEPLOY.md "Oracle deployment").
+# Pure worker: no [[services]] / no public URL — it only polls the Sui RPC and submits
+# settle transactions. Secrets are set with `fly secrets set`, never written here.
+app = "voltray-oracle"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[restart]]
+  policy = "always"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
