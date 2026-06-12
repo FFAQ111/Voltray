@@ -15,4 +15,7 @@ COPY src ./src
 
 # Secrets (ORACLE_SECRET_KEY, CHARGER_SECRET_KEY) come from the platform secret store
 # at runtime — never from a baked-in .env (see .dockerignore and docs/TRUST.md §7.3).
-CMD ["pnpm", "daemon"]
+#
+# Single node process loading tsx as an ESM loader — `pnpm daemon` would stack
+# pnpm → tsx → node and OOM a 256MB machine.
+CMD ["node", "--import", "tsx", "src/daemon.ts"]
