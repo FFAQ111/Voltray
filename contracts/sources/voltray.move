@@ -222,16 +222,24 @@ fun settle_inner<T>(
     // without a growing vector in any struct (same pattern as the respond dedup).
     assert!(!df::exists_with_type<ID, bool>(&vault.id, meter_id), E_ALREADY_SETTLED);
 
+    // Mark settled up front, before the zero-payout branch. A late pledge that arrives after
+    // FCFS has drawn remaining_units down to 0 is paid nothing, but it must still be recorded as
+    // handled — otherwise it never lands in the Settled log and an automated settler would retry
+    // it on every poll forever (see oracle/src/settler.ts).
+    df::add(&mut vault.id, meter_id, true);
+
     let units_paid = if (saved_units < event.remaining_units) saved_units
                      else event.remaining_units;
-    if (units_paid == 0) return;
-
-    df::add(&mut vault.id, meter_id, true);
     let amount = units_paid * event.reward_per_unit;
     event.remaining_units = event.remaining_units - units_paid;
 
-    let payment = coin::from_balance(balance::split(&mut vault.balance, amount), ctx);
-    transfer::public_transfer(payment, responder);
+    // Skip the transfer when the pool is exhausted (amount == 0); still emit Settled so the
+    // event log shows the pledge was processed — units_paid == 0 means "responded but missed
+    // the FCFS pool".
+    if (amount > 0) {
+        let payment = coin::from_balance(balance::split(&mut vault.balance, amount), ctx);
+        transfer::public_transfer(payment, responder);
+    };
 
     emit(Settled {
         event_id: object::id(event),

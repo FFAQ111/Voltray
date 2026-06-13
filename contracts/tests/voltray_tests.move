@@ -265,6 +265,39 @@ fun settle_rejects_double_settle() {
     scenario.end();
 }
 
+// Regression: a pledge settled after FCFS has drained the pool (units_paid == 0) must still be
+// recorded — dedup set, Settled emitted — not silently skipped. Otherwise it never lands in the
+// Settled log and an automated settler retries it forever. Proven by: the zero-payout settle does
+// NOT abort, and repeating it aborts E_ALREADY_SETTLED (so the marker was set the first time).
+#[test, expected_failure(abort_code = voltray::E_ALREADY_SETTLED)]
+fun settle_zero_payout_is_recorded_not_skipped() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
+    };
+
+    scenario.next_tx(UTILITY);
+    {
+        let mut event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
+        let meter_a = object::id_from_address(@0xA1);
+        let meter_b = object::id_from_address(@0xB2);
+
+        // Drain the entire pool on meter_a.
+        voltray::settle_for_testing(&mut event, &mut vault, USER, meter_a, TARGET_REDUCTION, scenario.ctx());
+        // meter_b: pool now empty -> 0 payout, but must be marked settled (must NOT abort).
+        voltray::settle_for_testing(&mut event, &mut vault, USER, meter_b, 30, scenario.ctx());
+        // Repeating meter_b proves the marker was set the first time -> E_ALREADY_SETTLED.
+        voltray::settle_for_testing(&mut event, &mut vault, USER, meter_b, 30, scenario.ctx());
+
+        ts::return_shared(event);
+        ts::return_shared(vault);
+    };
+
+    scenario.end();
+}
+
 // respond aborts if the caller does not own the meter.
 #[test, expected_failure(abort_code = voltray::E_NOT_METER_OWNER)]
 fun respond_rejects_non_owner() {
