@@ -5,6 +5,7 @@ import {
   useSuiClient,
 } from "@mysten/dapp-kit";
 import { toast } from "sonner";
+import { Loader2Icon } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -25,7 +26,10 @@ export default function CreateEvent({
 }) {
   const account = useCurrentAccount();
   const client = useSuiClient();
-  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  // Spans the whole flow (sign → execute → confirmation read → navigate), unlike the hook's
+  // isPending which clears after execute and leaves the button live during waitForTransaction.
+  const [busy, setBusy] = useState(false);
 
   // µUSDC per kWh (6 decimals): 100_000 = 0.1 USDC/kWh. With target 100 the vault funds at
   // 10 USDC, so one Circle faucet claim (20 USDC / 2h) covers a demo event.
@@ -45,6 +49,7 @@ export default function CreateEvent({
       startTime: start,
       endTime: start + durationMin * 60_000,
     });
+    setBusy(true);
     signAndExecute(
       { transaction: tx },
       {
@@ -54,27 +59,36 @@ export default function CreateEvent({
           });
           // Open the new event straight from the tx's created object (a fresh getObject
           // read), instead of waiting for the laggy event log to index the EventCreated.
-          const res = await client.waitForTransaction({
-            digest,
-            options: { showObjectChanges: true },
-          });
-          const created = res.objectChanges?.find(
-            (c) =>
-              c.type === "created" &&
-              c.objectType.endsWith("::voltray::DREvent"),
-          );
-          onCreated(
-            created && "objectId" in created
-              ? {
-                  eventId: created.objectId,
-                  utility: account!.address,
-                  rewardPerUnit,
-                  txDigest: digest,
-                }
-              : null,
-          );
+          // The component unmounts on navigation, so busy is released by the view change;
+          // if this follow-up read fails the event still exists, so fall back to the list.
+          try {
+            const res = await client.waitForTransaction({
+              digest,
+              options: { showObjectChanges: true },
+            });
+            const created = res.objectChanges?.find(
+              (c) =>
+                c.type === "created" &&
+                c.objectType.endsWith("::voltray::DREvent"),
+            );
+            onCreated(
+              created && "objectId" in created
+                ? {
+                    eventId: created.objectId,
+                    utility: account!.address,
+                    rewardPerUnit,
+                    txDigest: digest,
+                  }
+                : null,
+            );
+          } catch {
+            onCreated(null);
+          }
         },
-        onError: (e) => toast.error("Create failed", { description: e.message }),
+        onError: (e) => {
+          toast.error("Create failed", { description: e.message });
+          setBusy(false);
+        },
       },
     );
   };
@@ -142,10 +156,11 @@ export default function CreateEvent({
 
           <Button
             className="w-full"
-            disabled={isPending}
+            disabled={busy}
             onClick={submit}
           >
-            {isPending ? "Submitting…" : "Create & fund event"}
+            {busy && <Loader2Icon className="size-4 animate-spin" />}
+            {busy ? "Submitting…" : "Create & fund event"}
           </Button>
         </CardContent>
       </Card>

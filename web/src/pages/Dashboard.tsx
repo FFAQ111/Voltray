@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
-import { useQuery } from "@tanstack/react-query";
-import { Coins, Gauge, History, Power, Zap } from "lucide-react";
+import {
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+  useSuiClient,
+} from "@mysten/dapp-kit";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Coins, Gauge, History, Loader2Icon, Power, Zap } from "lucide-react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -10,10 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
+  buildRegisterMeter,
   fetchMeters,
   queryMyActivity,
   type ActivityKind,
+  type Meter,
 } from "../lib/voltray";
 import { formatUsdc, formatTime, shortAddr } from "../lib/format";
 
@@ -123,6 +131,8 @@ export default function Dashboard() {
         ))}
       </div>
 
+      <MeterManager meters={meters.data ?? []} address={account.address} />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -183,5 +193,84 @@ export default function Dashboard() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Register and list the connected wallet's smart meters. Meters live on-chain as owned
+// objects (fetchMeters), so registration is a one-time setup here; events only select an
+// existing meter to respond with.
+function MeterManager({
+  meters,
+  address,
+}: {
+  meters: Meter[];
+  address: string;
+}) {
+  const client = useSuiClient();
+  const qc = useQueryClient();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const register = () => {
+    setBusy(true);
+    signAndExecute(
+      { transaction: buildRegisterMeter(label) },
+      {
+        onSuccess: async ({ digest }) => {
+          await client.waitForTransaction({ digest });
+          toast.success("Meter registered.");
+          setLabel("");
+          await qc.invalidateQueries({ queryKey: ["meters", address] });
+          setBusy(false);
+        },
+        onError: (e) => {
+          toast.error("Registration failed", { description: e.message });
+          setBusy(false);
+        },
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gauge className="size-4" /> Smart meters
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {meters.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No meters yet. Register one to start responding to events.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {meters.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between py-2 text-sm"
+              >
+                <span>{m.label}</span>
+                <span className="font-mono text-muted-foreground">
+                  {shortAddr(m.id)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Input
+            placeholder="Meter label, e.g. home-1"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <Button disabled={busy || !label} onClick={register}>
+            {busy && <Loader2Icon className="size-4 animate-spin" />}
+            Register meter
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

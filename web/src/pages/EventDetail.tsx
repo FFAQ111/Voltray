@@ -6,7 +6,7 @@ import {
 } from "@mysten/dapp-kit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2Icon } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -14,7 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import {
   buildReclaim,
-  buildRegisterMeter,
   buildRespond,
   fetchEvent,
   fetchMeters,
@@ -53,7 +51,10 @@ export default function EventDetail({
   const client = useSuiClient();
   const account = useCurrentAccount();
   const qc = useQueryClient();
-  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  // Held across finality + refetch (not just the wallet round-trip) so an action button
+  // can't be re-clicked while the result is still settling. See the run() comment.
+  const [busy, setBusy] = useState(false);
 
   // Poll on-chain state so in-app txns and out-of-band oracle settlements appear within a
   // few seconds without a manual reload (queryEvents indexing lags the tx, so a one-shot
@@ -100,15 +101,26 @@ export default function EventDetail({
     });
 
   const run = (tx: ReturnType<typeof buildRespond>, ok: string) => {
+    setBusy(true);
     signAndExecute(
       { transaction: tx },
       {
-        onSuccess: () => {
-          toast.success(ok);
-          refresh();
+        // Wait for finality and a refetch before clearing busy — the hook's own pending
+        // state clears after execute, leaving a window where the tx isn't yet reflected
+        // on-chain but the button is live again.
+        onSuccess: async ({ digest }) => {
+          try {
+            await client.waitForTransaction({ digest });
+            toast.success(ok);
+            await refresh();
+          } finally {
+            setBusy(false);
+          }
         },
-        onError: (e) =>
-          toast.error("Transaction failed", { description: e.message }),
+        onError: (e) => {
+          toast.error("Transaction failed", { description: e.message });
+          setBusy(false);
+        },
       },
     );
   };
@@ -171,10 +183,7 @@ export default function EventDetail({
               (r) => r.responder === account.address && r.meterId === meterId,
             )
           }
-          disabled={isPending}
-          onRegister={(label) =>
-            run(buildRegisterMeter(label), "Meter registered.")
-          }
+          busy={busy}
           onRespond={(meterId) =>
             run(buildRespond(ev.id, meterId), "Response submitted.")
           }
@@ -204,7 +213,8 @@ export default function EventDetail({
             reclaimed={isReclaimed}
             remainingUnits={ev.remainingUnits}
             reclaimableUsdc={reclaimableUsdc}
-            disabled={isPending || !vault.data}
+            busy={busy}
+            vaultReady={!!vault.data}
             onReclaim={() =>
               run(buildReclaim(ev.id, vault.data!), "Remaining funds reclaimed.")
             }
@@ -285,18 +295,15 @@ function RespondPanel({
   status,
   meters,
   alreadyResponded,
-  disabled,
-  onRegister,
+  busy,
   onRespond,
 }: {
   status: ReturnType<typeof windowStatus>;
   meters: { id: string; label: string }[];
   alreadyResponded: (meterId: string) => boolean;
-  disabled: boolean;
-  onRegister: (label: string) => void;
+  busy: boolean;
   onRespond: (meterId: string) => void;
 }) {
-  const [label, setLabel] = useState("");
   const [meterId, setMeterId] = useState("");
   const selected = meterId || meters[0]?.id || "";
   const done = selected ? alreadyResponded(selected) : false;
@@ -308,16 +315,11 @@ function RespondPanel({
       </CardHeader>
       <CardContent>
         {meters.length === 0 ? (
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Input
-              placeholder="Meter label, e.g. home-1"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-            />
-            <Button disabled={disabled || !label} onClick={() => onRegister(label)}>
-              Register meter
-            </Button>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            No registered meter. Register one on the{" "}
+            <span className="text-foreground">Dashboard</span> to respond to this
+            event.
+          </p>
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Select
@@ -341,9 +343,10 @@ function RespondPanel({
               </SelectContent>
             </Select>
             <Button
-              disabled={disabled || status !== "active" || done}
+              disabled={busy || status !== "active" || done}
               onClick={() => onRespond(selected)}
             >
+              {busy && <Loader2Icon className="size-4 animate-spin" />}
               {done
                 ? "Already responded"
                 : status !== "active"
@@ -362,14 +365,16 @@ function ReclaimPanel({
   reclaimed,
   remainingUnits,
   reclaimableUsdc,
-  disabled,
+  busy,
+  vaultReady,
   onReclaim,
 }: {
   status: ReturnType<typeof windowStatus>;
   reclaimed: boolean;
   remainingUnits: number;
   reclaimableUsdc: number;
-  disabled: boolean;
+  busy: boolean;
+  vaultReady: boolean;
   onReclaim: () => void;
 }) {
   const ended = status === "ended";
@@ -397,9 +402,10 @@ function ReclaimPanel({
         </p>
         <Button
           variant="secondary"
-          disabled={disabled || !enabled}
+          disabled={busy || !vaultReady || !enabled}
           onClick={onReclaim}
         >
+          {busy && <Loader2Icon className="size-4 animate-spin" />}
           {label}
         </Button>
       </CardContent>
