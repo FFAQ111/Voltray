@@ -141,6 +141,10 @@ export async function settleAllPending(
           transaction: tx,
           options: { showEffects: true },
         });
+        // Wait for finality before the next settle so the SDK selects the updated gas-coin
+        // version. Without this, consecutive sends in one tick reuse a stale coin and are
+        // rejected, so a backlog dribbles out one settle per poll instead of draining at once.
+        await client.waitForTransaction({ digest: res.digest });
         console.log(
           `  settled ${s.driver.slice(0, 10)}…  ${savedUnits} kWh  ->  tx ${res.digest}`,
         );

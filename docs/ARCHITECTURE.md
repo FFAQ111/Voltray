@@ -226,7 +226,7 @@ Utility       User         SmartMeter   DREvent     RewardVault   Oracle
   │            │               │           │             │◀──────────│
   │            │               │           │─────settle──────────────│
   │            │               │           │             │           │
-  │            │◀───────── transfer SUI ───┴─────────────┘           │
+  │            │◀───────── transfer USDC ──┴─────────────┘           │
 ```
 
 ---
@@ -274,8 +274,8 @@ Resolved tradeoffs for the hackathon. Each one has a matching `TODO(post-MVP)` i
 ### 8.1 Settlement flow
 
 1. **Read pledges.** Scan `MeterResponded` for the event to get the `(responder, meter_id)` pairs that committed on-chain.
-2. **Read session evidence.** Load metered charging sessions. For the MVP they come from `oracle/src/simulator.ts`, which stands in for a charge point operator's OCPP backend. Each session carries the energy delivered and the window it ran in.
-3. **Verify, then settle.** Pay a session only if it matches an on-chain pledge and ran off-peak, meaning inside `[start_time, end_time]`. `saved_units` is the session's kWh. Pairs already in the `Settled` log are skipped, so a run is idempotent and safe to repeat.
+2. **Read session evidence.** Load each driver's charging session. For the MVP these come from an editable feed (`oracle/sessions.input.json`, shaped like a CPO's OCPP/OCPI record) with a deterministic fallback; `oracle/src/settler.ts` runs the pass. Each session carries the energy delivered inside the event's called window.
+3. **Sign, then settle.** For each matching pledge, the event's charger key signs the reading and `settle` verifies that ed25519 signature on-chain before paying `saved_units` (the session's kWh) — the submitter cannot fabricate the number (§3.4, TRUST.md §5.1). Pairs already in the `Settled` log are skipped, so a run is idempotent and safe to repeat.
 
 ### 8.2 Why tie payout to a session
 
