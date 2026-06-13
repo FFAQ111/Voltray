@@ -6,6 +6,7 @@
   "scripts": {
     "settle": "tsx src/run.ts",
     "daemon": "tsx src/daemon.ts",
+    "close": "tsx src/close.ts",
     "settle:event": "tsx src/oracle.ts",
     "simulate": "tsx src/simulator.ts",
     "gen:charger": "tsx src/gen-charger-key.ts",

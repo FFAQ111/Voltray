@@ -27,7 +27,7 @@ interface SessionInput {
 
 const INPUT_FILE = new URL("../sessions.input.json", import.meta.url);
 
-function loadSessionInput(): SessionInput[] {
+export function loadSessionInput(): SessionInput[] {
   if (!existsSync(INPUT_FILE)) return [];
   try {
     const raw = JSON.parse(readFileSync(INPUT_FILE, "utf8"));
