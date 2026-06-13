@@ -4,7 +4,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Transaction } from "@mysten/sui/transactions";
 import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { client, fq, USDC_TYPE } from "./config";
+import { client, fq, fqAt, USDC_TYPE } from "./config";
 import { fetchEvent, findVault, queryResponded, querySettled } from "./chain";
 import { signReading } from "./signer";
 import type { OcppSession } from "./simulator";
@@ -84,11 +84,10 @@ export async function settleAllPending(
         fetchEvent(eventId),
         findVault(eventId),
       ]);
-      // The reward pool is exhausted (FCFS drew remaining_units to 0): nothing left to pay.
-      // The contract returns early on a zero payout (`if (units_paid == 0) return`) *before*
-      // marking the meter settled, so a late responder here never lands in the Settled log and
-      // re-attempting it would loop forever, one wasted settle per poll. Skip it — that pledge
-      // simply missed the pool.
+      // The reward pool is exhausted (FCFS drew remaining_units to 0): nothing left to pay. v2
+      // would still mark such a pledge settled and emit Settled(0) — so it can't loop — but that
+      // is a gas-spending no-op. Skip it here so we never submit a zero-payout settle; that
+      // pledge simply missed the pool.
       if (ev.remainingUnits === 0) continue;
       // Production policy: only settle once the event window has closed — the real reduction
       // is only known after the window, and it avoids paying (and spending gas) mid-event. The
@@ -136,7 +135,7 @@ export async function settleAllPending(
         });
         const tx = new Transaction();
         tx.moveCall({
-          target: fq("settle"),
+          target: fqAt("settle"),
           typeArguments: [USDC_TYPE],
           arguments: [
             tx.object(eventId),

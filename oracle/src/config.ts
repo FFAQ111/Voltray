@@ -13,6 +13,14 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 export const PACKAGE_ID =
   process.env.PACKAGE_ID ??
   "0x4e211bfc5f344f541a235372cd9e22ef8a2947b5bfb4020a19858fbaaa25e964";
+// Address of the latest published *code* (published-at after the v2 upgrade). A Sui upgrade puts
+// new bytecode at a new address while object/event *types* keep the original PACKAGE_ID. So move
+// calls target PACKAGE_AT to run the fixed v2 logic, but event filters and type arguments must
+// stay on PACKAGE_ID or they match nothing (docs/DEPLOY.md, Sui upgrade semantics). Override via
+// `fly secrets set PACKAGE_AT=0x...` after a future upgrade, same as PACKAGE_ID after a republish.
+export const PACKAGE_AT =
+  process.env.PACKAGE_AT ??
+  "0x60c0218ddcefc0cf4c315bb1dff92c4e85233a69b235ee021578f9a2cbc5f539";
 export const MODULE = "voltray";
 export const NETWORK = "testnet" as const;
 
@@ -21,8 +29,12 @@ export const NETWORK = "testnet" as const;
 export const USDC_TYPE =
   "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
 
-// Fully-qualified `package::module::name` for move calls and event filters.
+// Fully-qualified `package::module::name` for event filters and type origins — uses PACKAGE_ID
+// (the original-id), which is where Move type/event identity lives even after an upgrade.
 export const fq = (name: string) => `${PACKAGE_ID}::${MODULE}::${name}`;
+// Same, but for move-call targets: PACKAGE_AT runs the latest published code. Use this for
+// every moveCall; use fq() for queryEvents filters and type arguments.
+export const fqAt = (name: string) => `${PACKAGE_AT}::${MODULE}::${name}`;
 
 export const client = new SuiClient({ url: getFullnodeUrl(NETWORK) });
 

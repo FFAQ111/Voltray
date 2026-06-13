@@ -8,7 +8,7 @@
 // Usage: pnpm close <eventId>   (only after the event window has closed)
 import "dotenv/config";
 import { Transaction } from "@mysten/sui/transactions";
-import { USDC_TYPE, chargerKeypair, client, fq, oracleKeypair } from "./config";
+import { USDC_TYPE, chargerKeypair, client, fqAt, oracleKeypair } from "./config";
 import { fetchEvent, findVault, queryResponded, querySettled } from "./chain";
 import { signReading } from "./signer";
 import { loadSessionInput } from "./settler";
@@ -50,7 +50,7 @@ async function main() {
       savedUnits,
     });
     tx.moveCall({
-      target: fq("settle"),
+      target: fqAt("settle"),
       typeArguments: [USDC_TYPE],
       arguments: [
         tx.object(eventId),
@@ -64,7 +64,7 @@ async function main() {
   }
   // Reclaim last, so it only takes what is left after the settles above are applied.
   tx.moveCall({
-    target: fq("reclaim_remaining"),
+    target: fqAt("reclaim_remaining"),
     typeArguments: [USDC_TYPE],
     arguments: [tx.object(eventId), tx.object(vaultId), tx.object(CLOCK_ID)],
   });
