@@ -84,6 +84,12 @@ export async function settleAllPending(
         fetchEvent(eventId),
         findVault(eventId),
       ]);
+      // The reward pool is exhausted (FCFS drew remaining_units to 0): nothing left to pay.
+      // The contract returns early on a zero payout (`if (units_paid == 0) return`) *before*
+      // marking the meter settled, so a late responder here never lands in the Settled log and
+      // re-attempting it would loop forever, one wasted settle per poll. Skip it — that pledge
+      // simply missed the pool.
+      if (ev.remainingUnits === 0) continue;
       // Production policy: only settle once the event window has closed — the real reduction
       // is only known after the window, and it avoids paying (and spending gas) mid-event. The
       // one-shot CLI (`pnpm settle`) leaves this off so a demo can force settlement early.
