@@ -70,10 +70,12 @@ This is the load-bearing layer. `saved_units` is the energy of a charging sessio
 - **Today (MVP):** the reading is **signed by the event's authorised charger key and
   verified on-chain** before payout (§5.1, shipped). The operator can no longer type an
   arbitrary `saved_units` — `settle` rejects anything not signed by the charger. The
-  sessions themselves are still synthesised by `oracle/src/simulator.ts` and signed by a
-  demo charger key the oracle holds, so what stays trusted has narrowed from "the operator's
-  word" to "the charger key": whoever holds that key can still sign a false reading. The demo
-  proves the *mechanism*; real key custody is the next layer.
+  sessions themselves are still synthesised off-chain (by `oracle/src/settler.ts`, optionally
+  from an editable `oracle/sessions.input.json` feed) and signed by a demo charger key the oracle
+  holds, so what stays trusted has narrowed from "the operator's word" to "the charger key":
+  whoever holds that key can still sign a false reading — and the feed file only sets the *source*
+  of the number, it does not make the number true. The demo proves the *mechanism*; real key
+  custody is the next layer.
 - **Hardening path:** move the charger key into tamper-resistant hardware / a TEE so a signed
   reading also attests the firmware that produced it (§5.4), and feed real CDRs (§6) instead of
   the simulator. Then trust rests on "the chip signed it," not "the operator holds the key."

@@ -1,0 +1,5 @@
+[
+  { "chargerId": "CP-001", "energyKwh": 24, "tariffWindow": "off-peak" },
+  { "chargerId": "CP-002", "energyKwh": 11, "tariffWindow": "off-peak" },
+  { "chargerId": "CP-003", "energyKwh": 33, "tariffWindow": "off-peak" }
+]

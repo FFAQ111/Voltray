@@ -81,3 +81,10 @@ Operational notes:
   with no public URL.
 - **Manual settles still work:** running `pnpm settle` locally while the daemon is up is
   harmless — the contract's per-meter dedup (`E_ALREADY_SETTLED`) rejects the loser of the race.
+- **Session data (demo):** the kWh each responder is paid for comes from
+  `oracle/sessions.input.json` (shaped like an OCPP StopTransaction / OCPI CDR), applied in order
+  to an event's responders; if the file is absent or shorter than the responder count, a
+  deterministic formula fills the rest. Edit it to control the on-screen numbers. Local
+  `pnpm settle` / `pnpm daemon` pick it up immediately; the Fly daemon uses the copy baked into the
+  image, so run `fly deploy --remote-only` to apply edits there. This only sets the *source* of the
+  number — it is not an anti-forgery measure (see TRUST.md §3.2).

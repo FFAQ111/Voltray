@@ -1,7 +1,7 @@
 // One settle pass over recent events, shared by the one-shot CLI (run.ts) and the
 // hosted daemon (daemon.ts): find this oracle's events with unsettled responses, read
 // the (simulated) OCPP sessions for those drivers, and settle them on-chain.
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Transaction } from "@mysten/sui/transactions";
 import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { client, fq, USDC_TYPE } from "./config";
@@ -12,6 +12,30 @@ import type { OcppSession } from "./simulator";
 interface PendingEvent {
   id: string;
   pending: { meterId: string; responder: string }[];
+}
+
+// An operator-editable session feed standing in for the OCPI CDRs a real CPO would push.
+// Entries apply in order to each event's pending responders; anything past the list (or a
+// missing/invalid file) falls back to the deterministic formula below. Only energyKwh affects
+// the on-chain payout — the other fields are display, shaped like an OCPP StopTransaction.
+// TODO(post-MVP): pull these from a CPO's OCPI CDR endpoint instead of a local file (TRUST.md §6).
+interface SessionInput {
+  chargerId?: string;
+  energyKwh: number;
+  tariffWindow?: "off-peak" | "peak";
+}
+
+const INPUT_FILE = new URL("../sessions.input.json", import.meta.url);
+
+function loadSessionInput(): SessionInput[] {
+  if (!existsSync(INPUT_FILE)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(INPUT_FILE, "utf8"));
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    console.warn("sessions.input.json is not valid JSON — using the built-in formula.");
+    return [];
+  }
 }
 
 // All recent events this oracle owns that still have an unsettled response.
@@ -49,6 +73,7 @@ export async function settleAllPending(
 ): Promise<number> {
   const oracleAddr = oracle.getPublicKey().toSuiAddress();
   const events = await pendingEvents(oracleAddr);
+  const input = loadSessionInput();
   let settledCount = 0;
 
   for (const { id: eventId, pending } of events) {
@@ -64,16 +89,20 @@ export async function settleAllPending(
 
       // 1) Read OCPP charging sessions for the pending drivers (simulated CPO feed).
       const mid = Math.floor((ev.startTime + ev.endTime) / 2);
-      const sessions: OcppSession[] = pending.map((r, i) => ({
-        chargerId: `CP-${String(i + 1).padStart(3, "0")}`,
-        meterId: r.meterId,
-        driver: r.responder,
-        transactionId: 1000 + i,
-        startTime: mid,
-        endTime: ev.endTime,
-        energyKwh: 12 + ((i * 7) % 19), // deterministic 12..30 kWh
-        tariffWindow: "off-peak",
-      }));
+      const sessions: OcppSession[] = pending.map((r, i) => {
+        const feed = input[i];
+        return {
+          chargerId: feed?.chargerId ?? `CP-${String(i + 1).padStart(3, "0")}`,
+          meterId: r.meterId,
+          driver: r.responder,
+          transactionId: 1000 + i,
+          startTime: mid,
+          endTime: ev.endTime,
+          // From the editable feed when present, else a deterministic 12..30 kWh.
+          energyKwh: feed?.energyKwh ?? 12 + ((i * 7) % 19),
+          tariffWindow: feed?.tariffWindow ?? "off-peak",
+        };
+      });
       writeFileSync(
         new URL("../sessions.json", import.meta.url),
         JSON.stringify(sessions, null, 2),

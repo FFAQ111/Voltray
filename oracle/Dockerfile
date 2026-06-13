@@ -12,6 +12,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY tsconfig.json ./
 COPY src ./src
+# Operator-editable session feed (optional; settler.ts falls back to a formula if absent).
+COPY sessions.input.json ./
 
 # Secrets (ORACLE_SECRET_KEY, CHARGER_SECRET_KEY) come from the platform secret store
 # at runtime — never from a baked-in .env (see .dockerignore and docs/TRUST.md §7.3).
