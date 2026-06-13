@@ -87,6 +87,26 @@ This is the load-bearing layer. `saved_units` is the energy of a charging sessio
 - **Hardening path:** require M-of-N oracle signatures or a multisig, so no single key
   can settle a lie. Eventually, stake-and-slash so a caught lie costs money (§5).
 
+### 3.4 This is the price-oracle problem, not a Voltray quirk
+
+Every on-chain system that touches the real world has this exact gap. A lending market
+trusts a *price* it cannot see; Voltray trusts a *kWh* it cannot see. The industry has not
+solved it cryptographically — it is unsolvable on-chain — it *narrows* it three ways, and
+our roadmap (§5) walks the same path:
+
+- **Many independent reporters.** Chainlink's oracle network takes a median across many
+  nodes and data sources, so no single reporter moves the number → our §5.2 (M-of-N).
+- **Authoritative source-signing.** Pyth has the originators themselves — exchanges and
+  market makers — sign their data first-party; the chain verifies the signature and
+  aggregates many of them. This is *exactly* the charger-signed model (§5.1) taken to real
+  hardware (§3.2): the device that knows the truth signs it. OCMF (§6.5) is "Pyth for kWh."
+- **Economic skin in the game.** A bond a proven lie slashes → our §5.3.
+
+RWA projects (tokenised treasuries, real estate) mostly *don't* minimise it — they fall
+back to licensed custodians, audits, and legal recourse, i.e. accepted centralisation. So
+Voltray resting on a documented, signature-gated data assumption is squarely normal for
+on-chain finance, not a weakness unique to it.
+
 ---
 
 ## 4. The last-mile problem (the part that stays hard)
@@ -194,6 +214,26 @@ CDRs over OCPI, or one site to run a direct-OCPP pilot. This is a chicken-and-eg
 no rewards volume → no operator interest, and vice-versa. The pitch is not "this is
 solved" — it is "the integration surface is a known, standard protocol (OCPI/CDR), and
 the first pilot is one operator conversation, not a platform rebuild."
+
+### 6.5 How real signed data plugs into the contract
+
+The settlement *mechanism* is the finished part: `settle` rebuilds
+`(event_id ‖ meter_id ‖ responder ‖ saved_units)` and verifies a signature against the
+`charger_pubkey` registered on the event before paying. Going from the demo to real data is
+an **integration, not a redesign** — you change what produces the signature, not how the
+contract checks it:
+
+| Tier | Source of the reading | What changes for us | Hardware cost to us |
+|---|---|---|---|
+| **OCPI CDR** *(nearest)* | A CPO's billing-grade Charge Detail Record, pulled from its OCPI API | Oracle relays the CDR's energy value + signature; one CPO agreement | none — consume data that already exists |
+| **OCMF source-signed** *(the real anti-forgery)* | The charger's calibrated meter signs each reading in hardware (`OCMF\|payload\|signature`, ECDSA) — *legally required* under German Mess- & Eichrecht, so it already happens | Register the charger's **hardware** public key per event (ideally bound to the meter, §3.1); pass the OCMF signature into `settle`; switch the on-chain verify to the OCMF curve — Sui has native `ecdsa_r1` (secp256r1) / `ecdsa_k1`, so common curves are a small delta (exotic ones like brainpool need more) | none — the metrology hardware is already deployed; we only *verify* what it signed |
+| **DePIN device** *(no CPO needed)* | A signing dongle on the meter (e.g. Arkreen's Smart Dongle / CT Meter), read via the DePIN's data API | Integrate the DePIN API; register the device key | a per-unit dongle (low tens of USD) + provisioning |
+
+The point that matters for cost: because metrology law already forces chargers to sign
+meter values *at the source*, the trust-minimised version is **cheaper than it sounds** —
+Voltray is a verifier of existing signatures, not a builder of meters. The first pilot is
+one OCPI conversation; the hardware-grade version is a signature-curve swap, not a new
+architecture.
 
 ---
 

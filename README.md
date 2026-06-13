@@ -4,7 +4,9 @@ When the grid is about to peak, paying people to use less power is cheaper than 
 
 Voltray turns that payment into code. A utility funds a reward pool, a participant responds, and the reward settles on-chain the moment a verified meter reading proves the reduction. There is no aggregator deciding who gets paid and no invoice cycle to wait through. The settlement rule is the contract itself.
 
-We start with EV charging. An electric car is a large load you can usually move in time without the driver noticing, so shifting a charge from the evening peak to overnight saves the operator real money. It also makes the measurement honest: one metered charging session over a known window is far easier to verify than estimating what a whole house would otherwise have used, which is where Demand Response usually loses people's trust.
+We start with EV charging. An electric car is a large, flexible load: when the grid operator calls a Demand Response event, a driver can hold the charge until the event window passes — or shift it outside — without really noticing, and that avoided load is worth real money to the operator. This is event-driven and paid at a premium, which is what makes it different from a standing peak/off-peak tariff: the tariff nudges routine load on a fixed schedule, a DR event pays you to respond to an acute, real-time shortage. EV charging also keeps the measurement honest: one metered session over a known window is far easier to verify than estimating what a whole house would otherwise have used, which is where Demand Response usually loses people's trust.
+
+Voltray is the *settlement layer*, not a meter. It consumes a signed energy reading and turns a verified reduction into an on-chain payout; the contract checks the signature before it pays. Where that reading comes from — a charge point operator's billing record, or a meter that signs its own readings in hardware — is a standard integration (see [docs/TRUST.md](docs/TRUST.md)), not something we have to build to prove the rail works.
 
 Why Sui: the reward is a real on-chain payment, released against verifiable evidence and sent to many small participants who never have to trust the operator. One PTB funds the vault and pays out in a single atomic step, and the rule that decides who gets paid lives in Move rather than a billing department.
 
@@ -33,7 +35,7 @@ One design choice is worth calling out. The shared `DREvent` never keeps a growi
 
 A unit is one kWh saved below the user's baseline. The utility sets a price per unit and a target reduction for the whole event. The vault is funded up front to cover the worst case (price times target), so the contract never owes more than it holds. Settlement is first come, first served until the pool runs out.
 
-Rewards are paid in SUI for now because that needs no extra setup to demo. The honest weakness is that SUI's price floats, so a fixed price per kWh is not a stable incentive in the real world. The planned fix is to denominate rewards in USDC. See [ARCHITECTURE §1.1](docs/ARCHITECTURE.md#11-economic-model).
+Rewards are paid in USDC (Circle's testnet USDC), so a fixed price per kWh stays a stable incentive. The contract is generic over the coin type (`Coin<T>`), so the reward asset is just a type argument — swapping it needs no contract change.
 
 ## Oracle
 
@@ -42,18 +44,19 @@ Rewards are paid in SUI for now because that needs no extra setup to demo. The h
 It works in three steps:
 
 1. Read the `MeterResponded` log to find who pledged to an event.
-2. Read each meter's charging sessions. For the MVP these come from a simulator that stands in for a charge point operator's OCPP feed.
-3. Call `settle` for every user who both pledged and actually charged off-peak, inside the event window.
+2. Read each meter's charging session. For the MVP these come from an editable feed (`oracle/sessions.input.json`) shaped like a charge point operator's OCPP/OCPI record; [docs/TRUST.md §6](docs/TRUST.md) covers how real signed data plugs in.
+3. Submit `settle` for every user who pledged and whose session shows a reduction inside the event's called window.
 
-The payout number is checked against session evidence instead of being typed in by hand. EV charging is what keeps that evidence clean: one metered session over a known window, rather than a guess at a whole-home baseline. For the MVP the oracle holds the utility's key and signs `settle` itself; replacing that with verified oracle signatures is the post-MVP path.
+The payout number is never typed in by hand: the charger signs the reading (ed25519) and the contract verifies that signature on-chain against the event's authorised key before paying, so the operator cannot settle an arbitrary number ([TRUST.md §5.1](docs/TRUST.md)). A polling daemon (`oracle/src/daemon.ts`, deployed on Fly.io) runs this loop automatically — respond in the app and the USDC payout lands within a poll tick, no keyboard required.
 
 Run it against a testnet event:
 
 ```bash
 cd oracle
 pnpm install
-cp .env.example .env        # paste the utility's exported key
-pnpm settle                 # auto-picks the latest unsettled response, reads sessions, pays out
+cp .env.example .env        # paste the utility and charger keys
+pnpm settle                 # one-shot: settle every pending response now
+pnpm daemon                 # or run the auto-settlement loop (this is what Fly.io runs)
 ```
 
 ## Contract
@@ -62,8 +65,8 @@ Four entry functions (`create_event`, `register_meter`, `respond`, `settle`) ove
 
 Deployed to Sui Testnet:
 
-- Package ID: `0x6a0f654529672473e14d2e17303570a075841562db176bbfc8b097b7362c2927`
-- Explorer: https://suiscan.xyz/testnet/object/0x6a0f654529672473e14d2e17303570a075841562db176bbfc8b097b7362c2927
+- Package ID: `0x4e211bfc5f344f541a235372cd9e22ef8a2947b5bfb4020a19858fbaaa25e964`
+- Explorer: https://suiscan.xyz/testnet/object/0x4e211bfc5f344f541a235372cd9e22ef8a2947b5bfb4020a19858fbaaa25e964
 
 ## Stack
 
@@ -89,7 +92,7 @@ pnpm install
 pnpm dev
 ```
 
-The frontend reads the deployed Package ID from `web/src/lib/sui.ts`. If you publish your own copy of the contract, update the constant there.
+The frontend reads the deployed Package ID from `web/src/lib/config.ts`. If you publish your own copy of the contract, update the constant there (and the mirror in `oracle/src/config.ts`).
 
 ## Demo
 
@@ -97,4 +100,4 @@ Video link goes here before submission.
 
 ## Status
 
-In progress for Sui Overflow 2026 (May 27 to June 21), DeFi & Payments track.
+In progress for Sui Overflow 2026 (May 7 to June 21), DeFi & Payments track.
