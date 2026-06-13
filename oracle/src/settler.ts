@@ -70,6 +70,7 @@ async function pendingEvents(oracleAddr: string): Promise<PendingEvent[]> {
 export async function settleAllPending(
   oracle: Ed25519Keypair,
   charger: Ed25519Keypair,
+  opts: { onlyEnded?: boolean } = {},
 ): Promise<number> {
   const oracleAddr = oracle.getPublicKey().toSuiAddress();
   const events = await pendingEvents(oracleAddr);
@@ -83,6 +84,10 @@ export async function settleAllPending(
         fetchEvent(eventId),
         findVault(eventId),
       ]);
+      // Production policy: only settle once the event window has closed — the real reduction
+      // is only known after the window, and it avoids paying (and spending gas) mid-event. The
+      // one-shot CLI (`pnpm settle`) leaves this off so a demo can force settlement early.
+      if (opts.onlyEnded && ev.endTime > Date.now()) continue;
       console.log(
         `Event ${eventId.slice(0, 12)}…  —  ${pending.length} pending response(s)\n`,
       );

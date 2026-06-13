@@ -26,10 +26,11 @@ Voltray/
 │   └── src/
 │       ├── pages/            # Dashboard, EventList, CreateEvent, EventDetail
 │       └── lib/              # sui client config, queryEvents helpers, package ID
-├── oracle/                   # Deferred — only build if MVP demo needs it
+├── oracle/                   # Settlement daemon (charger-signed settle, polls Sui); deployed on Fly.io — see docs/DEPLOY.md
 ├── docs/
 │   ├── ARCHITECTURE.md       # Contract design — source of truth before code
-│   └── DEPLOY.md             # Testnet deploy steps + package ID (written after first deploy)
+│   ├── TRUST.md              # Trust model, oracle problem, OCPP/OCPI integration, hosting
+│   └── DEPLOY.md             # Testnet + Fly.io deploy steps, package ID, rename procedure
 ├── .gitignore
 ├── CLAUDE.md
 └── README.md

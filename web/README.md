@@ -1,73 +1,34 @@
-# React + TypeScript + Vite
+# Voltray — Web (dApp)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The Voltray frontend: a React + TypeScript single-page app that talks **directly to the Sui
+testnet RPC** (no backend of its own). Utilities create and fund DR events, users register a
+meter and respond, and everyone watches settlements land on-chain. See the
+[root README](../README.md) for what Voltray is and
+[docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) for the contract.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + TypeScript, built with **Vite** (the dev server / bundler — see below)
+- [@mysten/dapp-kit](https://sdk.mystenlabs.com/dapp-kit) + `@mysten/sui` — wallet connection and Sui RPC
+- `@tanstack/react-query` — on-chain data fetching and polling
+- Tailwind CSS + shadcn/ui components
 
-## React Compiler
+## Run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm dev          # start the Vite dev server (hot reload)
+pnpm build        # type-check (tsc -b) + production build
+pnpm lint         # eslint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The deployed Package ID and reward-coin type live in
+[`src/lib/config.ts`](src/lib/config.ts). After a fresh contract publish, update them there
+(and the mirror in [`../oracle/src/config.ts`](../oracle/src/config.ts)).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Pages
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **Dashboard** — your activity, plus register / list your smart meters
+- **Events** — browse DR events
+- **Create Event** — fund a reward vault and post an event in one PTB
+- **Event Detail** — respond with a meter; utilities reclaim unspent funds after the window

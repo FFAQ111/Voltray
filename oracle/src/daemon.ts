@@ -14,12 +14,15 @@ async function main() {
   console.log(`Voltray settlement daemon`);
   console.log(`  oracle   ${oracle.getPublicKey().toSuiAddress()}`);
   console.log(`  package  ${PACKAGE_ID}`);
-  console.log(`  poll     every ${POLL_INTERVAL_MS / 1000}s\n`);
+  console.log(`  poll     every ${POLL_INTERVAL_MS / 1000}s`);
+  console.log(`  settles  events after their window closes\n`);
 
   for (;;) {
     // A transient RPC failure must not kill the worker — log and try again next tick.
     try {
-      const settled = await settleAllPending(oracle, charger);
+      // Only settle events whose window has closed (real reduction is known only then, and it
+      // avoids per-tick gas on active events). `pnpm settle` can still force a settle for demos.
+      const settled = await settleAllPending(oracle, charger, { onlyEnded: true });
       if (settled > 0) console.log(`tick: settled ${settled} response(s)`);
     } catch (e) {
       console.error(`tick failed: ${e instanceof Error ? e.message : e}`);
