@@ -10,6 +10,7 @@ Decentralized energy Demand Response (DR) system on Sui. Utilities post DR event
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — object schema, function signatures, MVP decisions, open questions. **Read this before touching contracts.**
 - [docs/TRUST.md](docs/TRUST.md) — trust model, the oracle problem, OCPP/OCPI integration paths, trust-minimisation roadmap, hosting by stage. Read this before touching the oracle or pitching the project.
+- [docs/OPERATING.md](docs/OPERATING.md) — operating model: who funds it live, zkLogin/sponsored-gas onboarding, compliance posture, why-on-chain. Read this before pitching or writing go-to-market.
 - [README.md](README.md) — public-facing project overview.
 
 ---
@@ -30,6 +31,7 @@ Voltray/
 ├── docs/
 │   ├── ARCHITECTURE.md       # Contract design — source of truth before code
 │   ├── TRUST.md              # Trust model, oracle problem, OCPP/OCPI integration, hosting
+│   ├── OPERATING.md          # Operating model: funding, onboarding, compliance, why-on-chain
 │   └── DEPLOY.md             # Testnet + Fly.io deploy steps, package ID, rename procedure
 ├── .gitignore
 ├── CLAUDE.md
