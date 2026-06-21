@@ -55,9 +55,12 @@ Sponsored gas is **built but gated**: the path (build → Enoki-sponsor → zkLo
 wired behind the `SPONSORED_GAS_ENABLED` flag in `web/src/lib/sponsored.ts`, off by default.
 Enoki's sponsor API needs a **published (paid) plan** — a sandbox account returns `403 "upgrade
 your plan to publish apps"` — so for the MVP demo a zkLogin user funds gas from the testnet faucet,
-and the "zero SUI" path is enabled later by upgrading the Enoki plan and flipping the flag. A
-self-hosted Sui gas station (open source) is the no-service-fee alternative — you run and fund the
-sponsor backend yourself instead of paying Enoki.
+and the "zero SUI" path is enabled later by upgrading the Enoki plan and flipping the flag. Cheaper/free routes exist and are decoupled from login (keep Enoki for zkLogin, swap only the
+sponsor backend): **Shinami**'s gas station seeds a testnet pool for free and is pay-as-you-go on
+mainnet (~0.002 SUI per sponsorship, no subscription); or self-host the open-source
+**MystenLabs/sui-gas-pool** (no service fee, but you run Redis + a funded sponsor key). The
+sponsored flow in `web/src/lib/sponsored.ts` is provider-agnostic — only the sponsor API client
+changes.
 
 ---
 
