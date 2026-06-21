@@ -6,7 +6,7 @@ import {
 } from "@mysten/dapp-kit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2Icon } from "lucide-react";
+import { ArrowLeft, Copy, Loader2Icon } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -154,6 +154,18 @@ export default function EventDetail({
         <h2 className="text-2xl font-semibold tracking-tight">
           Event {shortAddr(ev.id)}
         </h2>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground"
+          title="Copy full event ID"
+          onClick={() => {
+            navigator.clipboard.writeText(ev.id);
+            toast.success("Event ID copied", { description: ev.id });
+          }}
+        >
+          <Copy className="size-4" />
+        </Button>
         <Badge className={STATUS_BADGE[status]}>{status}</Badge>
       </div>
 
