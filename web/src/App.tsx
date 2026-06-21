@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { ConnectButton } from "@mysten/dapp-kit";
+import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 import { Button } from "@/components/ui/button";
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
 import { VoltrayMark } from "@/components/Logo";
 import type { EventSummary } from "./lib/voltray";
 import Dashboard from "./pages/Dashboard";
@@ -20,6 +22,7 @@ const TABS: { view: View; label: string }[] = [
 function App() {
   const [view, setView] = useState<View>("landing");
   const [selected, setSelected] = useState<EventSummary | null>(null);
+  const account = useCurrentAccount();
 
   const openDetail = (event: EventSummary) => {
     setSelected(event);
@@ -55,6 +58,22 @@ function App() {
             ))}
           </nav>
 
+          {account && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              title="Copy your address"
+              onClick={() => {
+                navigator.clipboard.writeText(account.address);
+                toast.success("Address copied", {
+                  description: account.address,
+                });
+              }}
+            >
+              <Copy className="size-4" />
+            </Button>
+          )}
           <ConnectButton />
         </div>
       </header>
