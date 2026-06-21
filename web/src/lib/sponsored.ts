@@ -40,10 +40,18 @@ async function executeSponsored(
   return enokiClient.executeSponsoredTransaction({ digest, signature });
 }
 
-// Submit a transaction, paying gas the right way for the connected wallet: zkLogin/Enoki accounts
-// route through the gas station (zero SUI); external wallets sign+execute normally. Returns the
-// finalized digest either way. Only use this for sponsor-allowlisted actions (register_meter,
-// respond) — utility actions (create_event, reclaim) must keep the plain signAndExecute path.
+// Enoki sponsored transactions require a published (paid) Enoki plan; in sandbox mode the sponsor
+// API returns 403 ("upgrade your plan to publish apps"). While this is false, zkLogin users pay
+// their own gas (fund the derived address from the testnet faucet). Flip to true after upgrading
+// the Enoki plan to turn on zero-SUI gas for register_meter / respond — no other change needed.
+// See docs/OPERATING.md "zkLogin onboarding".
+const SPONSORED_GAS_ENABLED: boolean = false;
+
+// Submit a transaction, paying gas the right way for the connected wallet. With sponsoring on,
+// zkLogin/Enoki accounts route through the gas station (zero SUI); otherwise (and for external
+// wallets) they sign+execute normally. Returns the finalized digest either way. Only ever route
+// sponsor-allowlisted actions (register_meter, respond) here — utility actions (create_event,
+// reclaim) must keep the plain signAndExecute path.
 export function useSubmitTransaction() {
   const account = useCurrentAccount();
   const { currentWallet } = useCurrentWallet();
@@ -51,7 +59,12 @@ export function useSubmitTransaction() {
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
 
   return async (transaction: Transaction): Promise<{ digest: string }> => {
-    if (account && currentWallet && isEnokiWallet(currentWallet)) {
+    if (
+      SPONSORED_GAS_ENABLED &&
+      account &&
+      currentWallet &&
+      isEnokiWallet(currentWallet)
+    ) {
       return executeSponsored(transaction, account.address, (input) =>
         signTransaction(input),
       );

@@ -49,6 +49,16 @@ not tolerate any of it. Sui has first-party answers, and naming them is part of 
 Together these put the join cost at roughly that of a web2 app, which is the bar a
 consumer-facing energy product has to clear.
 
+**Implementation status (testnet).** zkLogin is live: "Sign in with Google" via Enoki's
+`registerEnokiWallets` shows up in the wallet picker and derives a real address — no seed phrase.
+Sponsored gas is **built but gated**: the path (build → Enoki-sponsor → zkLogin-sign → execute) is
+wired behind the `SPONSORED_GAS_ENABLED` flag in `web/src/lib/sponsored.ts`, off by default.
+Enoki's sponsor API needs a **published (paid) plan** — a sandbox account returns `403 "upgrade
+your plan to publish apps"` — so for the MVP demo a zkLogin user funds gas from the testnet faucet,
+and the "zero SUI" path is enabled later by upgrading the Enoki plan and flipping the flag. A
+self-hosted Sui gas station (open source) is the no-service-fee alternative — you run and fund the
+sponsor backend yourself instead of paying Enoki.
+
 ---
 
 ## 3. Compliance posture
