@@ -12,11 +12,16 @@ import "@mysten/dapp-kit/dist/index.css";
 import App from "./App.tsx";
 import { Toaster } from "./components/ui/sonner";
 import "./index.css";
+import { registerVoltrayEnokiWallets } from "./lib/enoki";
 
 const { networkConfig } = createNetworkConfig({
   testnet: { url: getFullnodeUrl("testnet") },
 });
 const queryClient = new QueryClient();
+
+// Register Enoki zkLogin wallets ("Sign in with Google") into dapp-kit's wallet list, so they
+// show up in the existing ConnectButton alongside external wallets.
+registerVoltrayEnokiWallets();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

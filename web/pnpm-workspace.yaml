@@ -1,3 +1,5 @@
+allowBuilds:
+  protobufjs: true
 # Single-package config home for pnpm 11 (no `packages:` key = not a multi-package workspace).
 # Whitelists msw's build script so `pnpm add` does not fail with ERR_PNPM_IGNORED_BUILDS.
 onlyBuiltDependencies:
