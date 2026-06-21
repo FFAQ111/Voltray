@@ -115,10 +115,12 @@ export default function CreateEvent({
             <Label htmlFor="reward">Reward per unit (µUSDC / kWh saved)</Label>
             <Input
               id="reward"
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
               value={rewardPerUnit}
-              onChange={(e) => setRewardPerUnit(Number(e.target.value))}
+              onChange={(e) =>
+                setRewardPerUnit(Number(e.target.value.replace(/\D/g, "")) || 0)
+              }
             />
           </div>
 
@@ -126,10 +128,12 @@ export default function CreateEvent({
             <Label htmlFor="target">Target reduction (kWh)</Label>
             <Input
               id="target"
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
               value={targetReduction}
-              onChange={(e) => setTargetReduction(Number(e.target.value))}
+              onChange={(e) =>
+                setTargetReduction(Number(e.target.value.replace(/\D/g, "")) || 0)
+              }
             />
           </div>
 
@@ -137,10 +141,12 @@ export default function CreateEvent({
             <Label htmlFor="duration">Duration (minutes from now)</Label>
             <Input
               id="duration"
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
               value={durationMin}
-              onChange={(e) => setDurationMin(Number(e.target.value))}
+              onChange={(e) =>
+                setDurationMin(Number(e.target.value.replace(/\D/g, "")) || 0)
+              }
             />
           </div>
 
