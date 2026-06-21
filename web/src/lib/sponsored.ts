@@ -4,20 +4,18 @@ import {
   useSignAndExecuteTransaction,
   useSignTransaction,
 } from "@mysten/dapp-kit";
-import { EnokiClient, isEnokiWallet } from "@mysten/enoki";
+import { isEnokiWallet } from "@mysten/enoki";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromBase64, toBase64 } from "@mysten/sui/utils";
-import { ENOKI_API_KEY } from "./enoki";
 
-const enokiClient = new EnokiClient({ apiKey: ENOKI_API_KEY });
 const sponsorClient = new SuiClient({ url: getFullnodeUrl("testnet") });
 
-// Build → Enoki-sponsor → zkLogin-sign → Enoki-execute, so the gas is paid by the Enoki gas
-// station and the user holds zero SUI. Only works for move-call targets allowlisted in the Enoki
-// project (register_meter, respond); anything else is rejected by Enoki. The Enoki wallet's
-// signTransaction re-serializes but preserves the already-set sponsor gas, so the signature
-// still matches the digest Enoki returned.
+// Build → Shinami-sponsor (via our /api/sponsor proxy) → zkLogin-sign → execute, so the gas is
+// paid by Shinami's gas fund and the user holds zero SUI. The proxy holds the secret Shinami key
+// and only sponsors this package's register_meter / respond. The Enoki (zkLogin) wallet's
+// signTransaction re-serializes but preserves the sponsor's gas data, so the sender signature
+// still matches the bytes Shinami returned; we then submit both signatures together.
 async function executeSponsored(
   transaction: Transaction,
   sender: string,
@@ -29,23 +27,32 @@ async function executeSponsored(
     client: sponsorClient,
     onlyTransactionKind: true,
   });
-  const { bytes, digest } = await enokiClient.createSponsoredTransaction({
-    network: "testnet",
-    transactionKindBytes: toBase64(kindBytes),
-    sender,
+  const res = await fetch("/api/sponsor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      transactionKindBytes: toBase64(kindBytes),
+      sender,
+    }),
   });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(`Sponsorship failed: ${error}`);
+  }
+  const { txBytes, signature: sponsorSignature } = await res.json();
   const { signature } = await signTransaction({
-    transaction: Transaction.from(fromBase64(bytes)),
+    transaction: Transaction.from(fromBase64(txBytes)),
   });
-  return enokiClient.executeSponsoredTransaction({ digest, signature });
+  return sponsorClient.executeTransactionBlock({
+    transactionBlock: txBytes,
+    signature: [signature, sponsorSignature],
+  });
 }
 
-// Enoki sponsored transactions require a published (paid) Enoki plan; in sandbox mode the sponsor
-// API returns 403 ("upgrade your plan to publish apps"). While this is false, zkLogin users pay
-// their own gas (fund the derived address from the testnet faucet). Flip to true after upgrading
-// the Enoki plan to turn on zero-SUI gas for register_meter / respond — no other change needed.
-// See docs/OPERATING.md "zkLogin onboarding".
-const SPONSORED_GAS_ENABLED: boolean = false;
+// Sponsoring is live for zkLogin/Enoki accounts: their register_meter / respond run through the
+// Shinami gas station (zero SUI). Set false to fall back to faucet-funded self-paid gas (e.g. if
+// the gas fund is empty). External (browser-extension) wallets always self-pay regardless.
+const SPONSORED_GAS_ENABLED: boolean = true;
 
 // Submit a transaction, paying gas the right way for the connected wallet. With sponsoring on,
 // zkLogin/Enoki accounts route through the gas station (zero SUI); otherwise (and for external

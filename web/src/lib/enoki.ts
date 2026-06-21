@@ -5,8 +5,8 @@ import { registerEnokiWallets } from "@mysten/enoki";
 // (shipped in the frontend by design — the *private* Enoki key and any secrets never live here).
 // This registers zkLogin as a "Sign in with Google" wallet inside the existing dapp-kit
 // ConnectButton: the user gets a derived Sui address with no seed phrase and no extension.
-// NOTE: registerEnokiWallets does NOT sponsor gas — zero-SUI sponsorship is a separate
-// EnokiClient flow layered on top (see TODO in the respond/register paths).
+// NOTE: registerEnokiWallets does NOT sponsor gas — zero-SUI sponsorship is handled separately
+// in lib/sponsored.ts via the Shinami gas-station proxy, layered on top of this login wallet.
 export const ENOKI_API_KEY = "enoki_public_459f193f0955f3043c64c655f7928fa1";
 const GOOGLE_CLIENT_ID =
   "514360842030-vj9ikm77va7i15d1bklf3oj0o5j8ea6p.apps.googleusercontent.com";

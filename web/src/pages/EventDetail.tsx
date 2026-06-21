@@ -34,6 +34,7 @@ import {
   type EventSummary,
 } from "../lib/voltray";
 import { formatUsdc, formatTime, shortAddr, windowStatus } from "../lib/format";
+import { useSubmitTransaction } from "../lib/sponsored";
 
 const STATUS_BADGE: Record<ReturnType<typeof windowStatus>, string> = {
   active: "border-transparent bg-emerald-500/15 text-emerald-400",
@@ -52,6 +53,8 @@ export default function EventDetail({
   const account = useCurrentAccount();
   const qc = useQueryClient();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  // respond() is gas-sponsored for zkLogin users; reclaim stays on the plain self-paid path.
+  const submit = useSubmitTransaction();
   // Held across finality + refetch (not just the wallet round-trip) so an action button
   // can't be re-clicked while the result is still settling. See the run() comment.
   const [busy, setBusy] = useState(false);
@@ -99,6 +102,27 @@ export default function EventDetail({
           q.queryKey[0] as string,
         ),
     });
+
+  // Like run(), but routes through the gas-sponsor path (zero SUI for zkLogin users). Used for
+  // respond only — utility actions must not be sponsored. Keeps the same busy/finality handling.
+  const runSponsored = async (
+    tx: ReturnType<typeof buildRespond>,
+    ok: string,
+  ) => {
+    setBusy(true);
+    try {
+      const { digest } = await submit(tx);
+      await client.waitForTransaction({ digest });
+      toast.success(ok);
+      await refresh();
+    } catch (e) {
+      toast.error("Transaction failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = (tx: ReturnType<typeof buildRespond>, ok: string) => {
     setBusy(true);
@@ -197,7 +221,7 @@ export default function EventDetail({
           }
           busy={busy}
           onRespond={(meterId) =>
-            run(buildRespond(ev.id, meterId), "Response submitted.")
+            runSponsored(buildRespond(ev.id, meterId), "Response submitted.")
           }
         />
       )}

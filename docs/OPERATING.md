@@ -49,18 +49,21 @@ not tolerate any of it. Sui has first-party answers, and naming them is part of 
 Together these put the join cost at roughly that of a web2 app, which is the bar a
 consumer-facing energy product has to clear.
 
-**Implementation status (testnet).** zkLogin is live: "Sign in with Google" via Enoki's
-`registerEnokiWallets` shows up in the wallet picker and derives a real address — no seed phrase.
-Sponsored gas is **built but gated**: the path (build → Enoki-sponsor → zkLogin-sign → execute) is
-wired behind the `SPONSORED_GAS_ENABLED` flag in `web/src/lib/sponsored.ts`, off by default.
-Enoki's sponsor API needs a **published (paid) plan** — a sandbox account returns `403 "upgrade
-your plan to publish apps"` — so for the MVP demo a zkLogin user funds gas from the testnet faucet,
-and the "zero SUI" path is enabled later by upgrading the Enoki plan and flipping the flag. Cheaper/free routes exist and are decoupled from login (keep Enoki for zkLogin, swap only the
-sponsor backend): **Shinami**'s gas station seeds a testnet pool for free and is pay-as-you-go on
-mainnet (~0.002 SUI per sponsorship, no subscription); or self-host the open-source
-**MystenLabs/sui-gas-pool** (no service fee, but you run Redis + a funded sponsor key). The
-sponsored flow in `web/src/lib/sponsored.ts` is provider-agnostic — only the sponsor API client
-changes.
+**Implementation status (testnet).** Both halves are live. zkLogin: "Sign in with Google" via
+Enoki's `registerEnokiWallets` shows up in the wallet picker and derives a real address — no seed
+phrase. Sponsored gas: a zkLogin user's `register_meter` / `respond` are paid by **Shinami**'s Sui
+Gas Station, so the user holds **zero SUI**. The flow (build → Shinami-sponsor → zkLogin-sign →
+execute) lives in `web/src/lib/sponsored.ts` behind the `SPONSORED_GAS_ENABLED` flag (on); the
+secret Shinami key is held server-side by the `web/api/sponsor` proxy, which also enforces the
+move-call allowlist (only this package's `register_meter` / `respond`) that Enoki gave us for free.
+Shinami seeds the testnet fund with free SUI, so testnet sponsorship costs nothing; mainnet is
+pay-as-you-go (~0.002 SUI per sponsorship, no subscription) by topping up the same fund. We started
+on Enoki's sponsor API but its sandbox returns `403 "upgrade your plan to publish apps"` (sponsoring
+needs a paid plan), so we kept Enoki for login and swapped only the sponsor backend to Shinami —
+login and sponsoring are decoupled. Other routes: self-host the open-source **MystenLabs/sui-gas-pool**
+(no service fee, but you run Redis + a funded sponsor key), or upgrade the Enoki plan and point the
+proxy back at it — the proxy contract (post kind bytes + sender, get sponsored bytes + signature) is
+provider-agnostic.
 
 ---
 
