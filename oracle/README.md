@@ -37,13 +37,20 @@ that address's key. Export it with `sui keytool export --key-identity <utility-a
 
 ```bash
 pnpm settle                 # one-shot: settle every pending response now, then exit
-pnpm daemon                 # poll loop: settle pending every 30s (this is what Fly.io runs)
+pnpm daemon                 # poll loop: settle pending after each event's window closes (Fly.io)
+pnpm close <eventId>        # close out one ended event: settle all pending + reclaim, atomically
 ```
 
-Both are idempotent and safe to re-run: already-settled `(event, meter)` pairs are skipped
-off-chain and rejected on-chain (`E_ALREADY_SETTLED`). The daemon only sends a transaction
-when something is pending — idle ticks are read-only and cost no gas. Deployment and the
-`POLL_INTERVAL_MS` / `PACKAGE_ID` env overrides are in [../docs/DEPLOY.md](../docs/DEPLOY.md).
+Both `settle` and `daemon` are idempotent and safe to re-run: already-settled `(event, meter)`
+pairs are skipped off-chain and rejected on-chain (`E_ALREADY_SETTLED`). The daemon only sends a
+transaction when something is pending — idle ticks are read-only and cost no gas. Deployment and
+the `POLL_INTERVAL_MS` / `PACKAGE_ID` env overrides are in [../docs/DEPLOY.md](../docs/DEPLOY.md).
+
+`pnpm close` bundles, in a **single PTB**, a `settle` for every still-pending responder followed
+by `reclaim_remaining`, so the leftover can never be reclaimed ahead of a pledged-but-unsettled
+payout. Run it once the window has closed; it returns the unspent USDC to the utility. The daemon
+settles but does **not** reclaim — returning leftover funds is a manual step (`pnpm close` or the
+frontend Reclaim button).
 
 To target a specific event with the older two-step form:
 
@@ -56,10 +63,11 @@ pnpm settle:event <eventId> # verifies sessions and settles eligible drivers on-
 
 | File | Role |
 |---|---|
-| `src/config.ts` | Package ID, Sui client, oracle + charger keypairs |
+| `src/config.ts` | Package addresses (`PACKAGE_ID` for queries, `PACKAGE_AT` for v2 move calls), Sui client, oracle + charger keypairs |
 | `src/chain.ts` | Event-log reads: pledges, settled set, event window, vault lookup |
 | `src/signer.ts` | Charger ed25519 signature over the reading (TRUST.md §5.1) |
 | `src/settler.ts` | Core settle pass: find pending, read the feed, sign, call `settle()` |
 | `src/run.ts` | One-shot wrapper (`pnpm settle`) |
 | `src/daemon.ts` | Poll loop (`pnpm daemon`, deployed on Fly.io) |
+| `src/close.ts` | Atomic settle-all + reclaim in one PTB (`pnpm close <eventId>`) |
 | `src/simulator.ts` / `src/oracle.ts` | Older per-event two-step path (`pnpm simulate` / `settle:event`) |
