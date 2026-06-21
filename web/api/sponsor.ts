@@ -1,6 +1,13 @@
+/// <reference types="node" />
 import { Transaction } from "@mysten/sui/transactions";
 import { fromBase64 } from "@mysten/sui/utils";
-import { PACKAGE_ID, MODULE } from "../src/lib/config";
+
+// Mirrors web/src/lib/config.ts. Inlined (not imported) because Vercel compiles functions with
+// nodenext resolution, which rejects extensionless cross-directory imports; these change only on a
+// fresh package publish (see docs/DEPLOY.md), the same time config.ts is updated.
+const PACKAGE_ID =
+  "0x4e211bfc5f344f541a235372cd9e22ef8a2947b5bfb4020a19858fbaaa25e964";
+const MODULE = "voltray";
 
 // Server-side gas sponsor proxy backed by Shinami's Sui Gas Station. The Shinami access key is a
 // SECRET — it can spend our gas fund — so unlike the public Enoki key it must never reach the
