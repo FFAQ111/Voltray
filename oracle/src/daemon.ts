@@ -1,8 +1,8 @@
-// Hosted auto-settlement worker: the settle pass from settler.ts on a poll loop.
+// Hosted auto-close worker: closes ended events (settle pending + reclaim leftover) on a poll loop.
 // Deployed on Fly.io (see docs/DEPLOY.md); polling over WS subscription per docs/TRUST.md §7.1.
 import "dotenv/config";
 import { PACKAGE_ID, chargerKeypair, oracleKeypair } from "./config";
-import { settleAllPending } from "./settler";
+import { closeAllEnded } from "./closer";
 
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 30_000);
 
@@ -15,15 +15,18 @@ async function main() {
   console.log(`  oracle   ${oracle.getPublicKey().toSuiAddress()}`);
   console.log(`  package  ${PACKAGE_ID}`);
   console.log(`  poll     every ${POLL_INTERVAL_MS / 1000}s`);
-  console.log(`  settles  events after their window closes\n`);
+  console.log(`  closes   events after their window: settle pending + reclaim leftover\n`);
 
   for (;;) {
     // A transient RPC failure must not kill the worker — log and try again next tick.
     try {
-      // Only settle events whose window has closed (real reduction is known only then, and it
-      // avoids per-tick gas on active events). `pnpm settle` can still force a settle for demos.
-      const settled = await settleAllPending(oracle, charger, { onlyEnded: true });
-      if (settled > 0) console.log(`tick: settled ${settled} response(s)`);
+      // Close every event whose window has closed: settle all still-pending responders and
+      // reclaim the leftover to the utility, atomically per event. Reclaim is gated on the
+      // window being over, so active events are read-only and cost no gas. `pnpm settle` can
+      // still force a mid-window settle for demos.
+      const { closed, settled } = await closeAllEnded(oracle, charger);
+      if (closed > 0)
+        console.log(`tick: closed ${closed} event(s), settled ${settled} response(s)`);
     } catch (e) {
       console.error(`tick failed: ${e instanceof Error ? e.message : e}`);
     }
