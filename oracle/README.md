@@ -37,7 +37,7 @@ that address's key. Export it with `sui keytool export --key-identity <utility-a
 
 ```bash
 pnpm settle                 # one-shot: settle every pending response now, then exit
-pnpm daemon                 # poll loop: settle pending after each event's window closes (Fly.io)
+pnpm daemon                 # poll loop: auto-close (settle + reclaim) each event after its window closes (Fly.io)
 pnpm close <eventId>        # close out one ended event: settle all pending + reclaim, atomically
 ```
 
@@ -48,9 +48,10 @@ the `POLL_INTERVAL_MS` / `PACKAGE_ID` env overrides are in [../docs/DEPLOY.md](.
 
 `pnpm close` bundles, in a **single PTB**, a `settle` for every still-pending responder followed
 by `reclaim_remaining`, so the leftover can never be reclaimed ahead of a pledged-but-unsettled
-payout. Run it once the window has closed; it returns the unspent USDC to the utility. The daemon
-settles but does **not** reclaim — returning leftover funds is a manual step (`pnpm close` or the
-frontend Reclaim button).
+payout. The hosted **daemon now runs this same atomic close automatically** once a window ends —
+settling any stragglers and returning the unspent USDC to the utility on the first poll tick. It
+is idempotent: an ended event is skipped once its vault is drained or a `Reclaimed` event exists.
+`pnpm close <eventId>` and the frontend Reclaim button remain for manual/one-off use.
 
 To target a specific event with the older two-step form:
 
@@ -68,6 +69,7 @@ pnpm settle:event <eventId> # verifies sessions and settles eligible drivers on-
 | `src/signer.ts` | Charger ed25519 signature over the reading (TRUST.md §5.1) |
 | `src/settler.ts` | Core settle pass: find pending, read the feed, sign, call `settle()` |
 | `src/run.ts` | One-shot wrapper (`pnpm settle`) |
-| `src/daemon.ts` | Poll loop (`pnpm daemon`, deployed on Fly.io) |
-| `src/close.ts` | Atomic settle-all + reclaim in one PTB (`pnpm close <eventId>`) |
+| `src/closer.ts` | Atomic settle-all + reclaim in one PTB: `closeEvent` (one event) + `closeAllEnded` (daemon sweep of ended events) |
+| `src/daemon.ts` | Poll loop: auto-close ended events (`pnpm daemon`, deployed on Fly.io) |
+| `src/close.ts` | CLI wrapper over `closeEvent` (`pnpm close <eventId>`) |
 | `src/simulator.ts` / `src/oracle.ts` | Older per-event two-step path (`pnpm simulate` / `settle:event`) |
