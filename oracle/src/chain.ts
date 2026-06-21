@@ -44,6 +44,23 @@ export async function querySettled(
     .map((j) => ({ responder: j.responder, meterId: j.meter_id }));
 }
 
+// Events whose leftover has already been returned to the utility. Lets the daemon tell a
+// still-open vault from one already closed out — the same idempotency role querySettled plays
+// for paid pairs, and the same signal the frontend uses (web EventDetail "isReclaimed").
+export async function queryReclaimed(
+  eventId: string,
+): Promise<{ amount: number }[]> {
+  const res = await client.queryEvents({
+    query: { MoveEventType: fq("Reclaimed") },
+    order: "descending",
+    limit: 50,
+  });
+  return res.data
+    .map((e) => e.parsedJson as Record<string, string>)
+    .filter((j) => j.event_id === eventId)
+    .map((j) => ({ amount: Number(j.amount) }));
+}
+
 export interface EventWindow {
   utility: string;
   startTime: number;
