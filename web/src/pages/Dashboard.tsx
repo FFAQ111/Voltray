@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  useCurrentAccount,
-  useSignAndExecuteTransaction,
-  useSuiClient,
-} from "@mysten/dapp-kit";
+import { useCurrentAccount, useSuiClient } from "@mysten/dapp-kit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Coins, Gauge, History, Loader2Icon, Power, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +20,7 @@ import {
   type Meter,
 } from "../lib/voltray";
 import { formatUsdc, formatTime, shortAddr } from "../lib/format";
+import { useSubmitTransaction } from "../lib/sponsored";
 
 // Reduced-scope Dashboard: a personal summary derived off-chain by scanning the event log
 // (see docs/ARCHITECTURE.md §5) — no aggregate state on-chain. Stats and the activity feed
@@ -208,28 +205,25 @@ function MeterManager({
 }) {
   const client = useSuiClient();
   const qc = useQueryClient();
-  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const submit = useSubmitTransaction();
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const register = () => {
+  const register = async () => {
     setBusy(true);
-    signAndExecute(
-      { transaction: buildRegisterMeter(label) },
-      {
-        onSuccess: async ({ digest }) => {
-          await client.waitForTransaction({ digest });
-          toast.success("Meter registered.");
-          setLabel("");
-          await qc.invalidateQueries({ queryKey: ["meters", address] });
-          setBusy(false);
-        },
-        onError: (e) => {
-          toast.error("Registration failed", { description: e.message });
-          setBusy(false);
-        },
-      },
-    );
+    try {
+      const { digest } = await submit(buildRegisterMeter(label));
+      await client.waitForTransaction({ digest });
+      toast.success("Meter registered.");
+      setLabel("");
+      await qc.invalidateQueries({ queryKey: ["meters", address] });
+    } catch (e) {
+      toast.error("Registration failed", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
