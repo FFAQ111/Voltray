@@ -20,7 +20,7 @@ export const PACKAGE_ID =
 // `fly secrets set PACKAGE_AT=0x...` after a future upgrade, same as PACKAGE_ID after a republish.
 export const PACKAGE_AT =
   process.env.PACKAGE_AT ??
-  "0x60c0218ddcefc0cf4c315bb1dff92c4e85233a69b235ee021578f9a2cbc5f539";
+  "0x6057edd8a8438489ee52390594b0cf408a48d368c9215a9ebbea7b61be9e3efa";
 export const MODULE = "voltray";
 export const NETWORK = "testnet" as const;
 
