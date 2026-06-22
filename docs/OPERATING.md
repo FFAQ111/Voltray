@@ -56,6 +56,9 @@ Gas Station, so the user holds **zero SUI**. The flow (build → Shinami-sponsor
 execute) lives in `web/src/lib/sponsored.ts` behind the `SPONSORED_GAS_ENABLED` flag (on); the
 secret Shinami key is held server-side by the `web/api/sponsor` proxy, which also enforces the
 move-call allowlist (only this package's `register_meter` / `respond`) that Enoki gave us for free.
+This requires the frontend on **`@mysten/sui` v2** (with dapp-kit / enoki 1.1): Shinami's sponsored
+`TransactionData` uses the `ValidDuring` expiration variant, which the v1 SDK cannot deserialize
+(`Unknown value 2 for enum TransactionExpiration`).
 Shinami seeds the testnet fund with free SUI, so testnet sponsorship costs nothing; mainnet is
 pay-as-you-go (~0.002 SUI per sponsorship, no subscription) by topping up the same fund. We started
 on Enoki's sponsor API but its sandbox returns `403 "upgrade your plan to publish apps"` (sponsoring
