@@ -98,7 +98,7 @@ The frontend reads the deployed Package ID from `web/src/lib/config.ts`. If you 
 
 ## Demo
 
-Video link goes here before submission.
+Watch the demo: https://youtu.be/KE_Q6yOQJ_A
 
 ## Status
 
