@@ -83,8 +83,10 @@ export async function closeEvent(
   return { settled: pending.length, digest: res.digest };
 }
 
-// The daemon close pass: find this oracle's events whose window has closed and that still need
-// closing, and run closeEvent for each. Idempotent — an ended event is skipped once its vault is
+// The daemon close pass: find every event whose window has closed and that still needs closing,
+// and run closeEvent for each — regardless of which wallet created it. The contract authorises the
+// ORACLE address to settle/reclaim any event (reclaim still pays the creator), so a judge's
+// zkLogin-created event auto-closes too. Idempotent — an ended event is skipped once its vault is
 // drained (remaining_units === 0, the same signal settler.ts uses) or its leftover has already
 // been returned (a Reclaimed event exists). Returns how many events were closed and how many
 // responders were settled across them.
@@ -97,7 +99,6 @@ export async function closeAllEnded(
   oracle: Ed25519Keypair,
   charger: Ed25519Keypair,
 ): Promise<{ closed: number; settled: number }> {
-  const oracleAddr = oracle.getPublicKey().toSuiAddress();
   const res = await client.queryEvents({
     query: { MoveEventType: fq("EventCreated") },
     order: "descending",
@@ -107,7 +108,6 @@ export async function closeAllEnded(
   let settled = 0;
   for (const e of res.data) {
     const j = e.parsedJson as Record<string, string>;
-    if (j.utility !== oracleAddr) continue;
     const eventId = j.event_id;
     // One bad event (e.g. a transient RPC error) must not block the rest of the sweep.
     try {

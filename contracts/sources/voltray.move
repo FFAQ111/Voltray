@@ -26,6 +26,17 @@ const E_INVALID_WINDOW: u64 = 8;
 const E_BAD_SIGNATURE: u64 = 9;
 const E_BAD_PUBKEY: u64 = 10;
 
+// ===== Authorities =====
+
+// The hosted settlement oracle's address. It may settle/reclaim ANY event in addition to the
+// event's own utility, so the daemon (which holds only this one key) can close out events created
+// by any wallet — including a judge's zkLogin account during the demo. Reclaim still returns the
+// leftover to event.utility, so granting the oracle this power never redirects funds. Settle is
+// still gated by the per-event charger signature, so the oracle cannot fabricate a reading either.
+// TODO(post-MVP): replace this hardcoded key with oracle-signature verification or a multisig so
+// the settler is not a single fixed address (ARCHITECTURE §5 oracle-trust row, TRUST.md §5.2).
+const ORACLE: address = @0x45f4536afa601c9800ede4e0132eaa35bafaf2d4a5cb7aed51342c7efaf5e61d;
+
 // ===== Objects =====
 
 // TODO(post-MVP): replace free-form `label` with a hardware-signed serial or TEE attestation.
@@ -178,8 +189,8 @@ public fun respond(
     });
 }
 
-// The utility submits the tx, but it can no longer name an arbitrary saved_units: the reading
-// must carry an ed25519 signature from the event's authorised charger key (docs/TRUST.md §5.1).
+// The utility or the hosted ORACLE submits the tx, but neither can name an arbitrary saved_units:
+// the reading must carry an ed25519 signature from the event's authorised charger key (TRUST.md §5.1).
 // TODO(post-MVP): authorise a *set* of charger keys per event; bind a meter to its charger
 // (TRUST.md §3.1); M-of-N / multisig settlement (§5.2); pro-rata allocation instead of FCFS.
 public fun settle<T>(
@@ -214,7 +225,7 @@ fun settle_inner<T>(
     saved_units: u64,
     ctx: &mut TxContext,
 ) {
-    assert!(ctx.sender() == event.utility, E_NOT_UTILITY);
+    assert!(ctx.sender() == event.utility || ctx.sender() == ORACLE, E_NOT_UTILITY);
     assert!(vault.event_id == object::id(event), E_WRONG_VAULT);
 
     // Per-(event, meter) payout dedup. The vault is 1:1 with the event, so a dynamic field
@@ -264,9 +275,10 @@ public fun settle_for_testing<T>(
     settle_inner(event, vault, responder, meter_id, saved_units, ctx);
 }
 
-// After the window closes, the utility recovers the unspent vault balance (the worst-case
-// funding it pre-deposited but the responders never claimed). Gated on the window being over
-// so funds can't be pulled out from under active responders.
+// After the window closes, the unspent vault balance is returned to the utility (the worst-case
+// funding it pre-deposited but the responders never claimed). Callable by the utility or the
+// hosted ORACLE (so the daemon can close any wallet's event), but always pays out to
+// event.utility. Gated on the window being over so funds can't be pulled from active responders.
 //
 // TODO(post-MVP): a decentralised settler needs a settlement-finality / grace window before
 // reclaim, so leftovers can't be pulled ahead of pledged-but-unsettled payouts. Under the MVP
@@ -277,7 +289,7 @@ public fun reclaim_remaining<T>(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(ctx.sender() == event.utility, E_NOT_UTILITY);
+    assert!(ctx.sender() == event.utility || ctx.sender() == ORACLE, E_NOT_UTILITY);
     assert!(vault.event_id == object::id(event), E_WRONG_VAULT);
     assert!(clock.timestamp_ms() > event.end_time, E_EVENT_NOT_ENDED);
 

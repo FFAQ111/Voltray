@@ -10,6 +10,8 @@ use voltray::voltray::{Self, DREvent, RewardVault, SmartMeter};
 
 const UTILITY: address = @0xACE;
 const USER: address = @0xBEEF;
+// Must match the ORACLE constant in the contract: the hosted settler that may close any event.
+const ORACLE: address = @0x45f4536afa601c9800ede4e0132eaa35bafaf2d4a5cb7aed51342c7efaf5e61d;
 
 // Event runs over [START, END]; clock is parked inside the window unless a test moves it.
 const START: u64 = 1_000;
@@ -183,7 +185,7 @@ fun settle_caps_payout_at_remaining_units() {
     scenario.end();
 }
 
-// Only event.utility may settle.
+// Only event.utility or the hosted ORACLE may settle; anyone else aborts.
 #[test, expected_failure(abort_code = voltray::E_NOT_UTILITY)]
 fun settle_rejects_non_utility() {
     let mut scenario = ts::begin(UTILITY);
@@ -200,6 +202,36 @@ fun settle_rejects_non_utility() {
         voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 10, scenario.ctx());
         ts::return_shared(event);
         ts::return_shared(vault);
+    };
+
+    scenario.end();
+}
+
+// The hosted ORACLE may settle an event created by a different utility (so the daemon can close
+// out any wallet's event — e.g. a judge's). The payout still goes to the responder.
+#[test]
+fun settle_allows_oracle() {
+    let mut scenario = ts::begin(UTILITY);
+    {
+        let coin = coin::mint_for_testing<SUI>(VAULT_FUNDING, scenario.ctx());
+        voltray::create_event(coin, REWARD_PER_UNIT, TARGET_REDUCTION, START, END, CHARGER_PK, scenario.ctx());
+    };
+
+    scenario.next_tx(ORACLE); // not the utility, but the authorised oracle
+    {
+        let mut event = scenario.take_shared<DREvent>();
+        let mut vault = scenario.take_shared<RewardVault<SUI>>();
+        let event_id = object::id(&event);
+        voltray::settle_for_testing(&mut event, &mut vault, USER, event_id, 30, scenario.ctx());
+        ts::return_shared(event);
+        ts::return_shared(vault);
+    };
+
+    scenario.next_tx(USER);
+    {
+        let payout = scenario.take_from_sender<Coin<SUI>>();
+        assert!(payout.value() == 300, 0);
+        coin::burn_for_testing(payout);
     };
 
     scenario.end();
