@@ -3,8 +3,9 @@
 > How Voltray would actually run as a live service — who funds it, how a user joins
 > with minimal friction, what regulation it sits under, and why any of it belongs
 > on-chain. `TRUST.md` covers what we have to trust; this covers how the thing operates
-> as a business. None of this is built in the MVP — the MVP is the testnet demo of the
-> settlement rail. This document is the vision the rail is designed to slot into.
+> as a business. The settlement rail and the onboarding layer (zkLogin + zero-SUI sponsored
+> gas) are built and live on testnet; the rest — real OCPP/OCPI ingestion, aggregator
+> licensing, KYC — is the vision the rail is designed to slot into (§5).
 
 ---
 
@@ -111,7 +112,8 @@ reason for it.
 ## 5. MVP vs. this document
 
 The deployed MVP demonstrates the rail end-to-end on testnet: a funded event, a metered
-response, charger-signed settlement, and reclaim of the remainder. zkLogin, sponsored
-gas, real OCPP/OCPI ingestion, aggregator licensing, and KYC are described here as the
-operating model the rail is built to fit — they are deliberately out of MVP scope
-(`CLAUDE.md`, `ARCHITECTURE.md §5`).
+response, charger-signed settlement, and reclaim of the remainder. The onboarding half of
+this document is also live — zkLogin login and zero-SUI sponsored gas both run on testnet
+(§2). What remains purely aspirational here is real OCPP/OCPI ingestion, aggregator
+licensing, and KYC: those are the operating model the rail is built to fit, deliberately
+out of MVP scope (`CLAUDE.md`, `ARCHITECTURE.md §5`).
