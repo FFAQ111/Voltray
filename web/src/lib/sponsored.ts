@@ -49,10 +49,11 @@ async function executeSponsored(
   });
 }
 
-// Sponsoring is live for zkLogin/Enoki accounts: their register_meter / respond run through the
-// Shinami gas station (zero SUI). Set false to fall back to faucet-funded self-paid gas (e.g. if
-// the gas fund is empty). External (browser-extension) wallets always self-pay regardless.
-const SPONSORED_GAS_ENABLED: boolean = true;
+// Faucet fallback on `main`: zkLogin/Enoki accounts self-pay (fund the derived address once from
+// the testnet faucet). Shinami zero-SUI sponsoring needs @mysten/sui v2 to deserialize the sponsor's
+// `ValidDuring` expiration — that upgrade lives on the feat/upgrade-sui-v2 branch, which flips this
+// back to true. External (browser-extension) wallets always self-pay regardless.
+const SPONSORED_GAS_ENABLED: boolean = false;
 
 // Submit a transaction, paying gas the right way for the connected wallet. With sponsoring on,
 // zkLogin/Enoki accounts route through the gas station (zero SUI); otherwise (and for external
