@@ -5,11 +5,17 @@ import {
   useSignTransaction,
 } from "@mysten/dapp-kit";
 import { isEnokiWallet } from "@mysten/enoki";
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import {
+  SuiJsonRpcClient as SuiClient,
+  getJsonRpcFullnodeUrl as getFullnodeUrl,
+} from "@mysten/sui/jsonRpc";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromBase64, toBase64 } from "@mysten/sui/utils";
 
-const sponsorClient = new SuiClient({ url: getFullnodeUrl("testnet") });
+const sponsorClient = new SuiClient({
+  url: getFullnodeUrl("testnet"),
+  network: "testnet",
+});
 
 // Build → Shinami-sponsor (via our /api/sponsor proxy) → zkLogin-sign → execute, so the gas is
 // paid by Shinami's gas fund and the user holds zero SUI. The proxy holds the secret Shinami key
@@ -49,11 +55,11 @@ async function executeSponsored(
   });
 }
 
-// Faucet fallback on `main`: zkLogin/Enoki accounts self-pay (fund the derived address once from
-// the testnet faucet). Shinami zero-SUI sponsoring needs @mysten/sui v2 to deserialize the sponsor's
-// `ValidDuring` expiration — that upgrade lives on the feat/upgrade-sui-v2 branch, which flips this
-// back to true. External (browser-extension) wallets always self-pay regardless.
-const SPONSORED_GAS_ENABLED: boolean = false;
+// Sponsoring is live for zkLogin/Enoki accounts: their register_meter / respond run through the
+// Shinami gas station (zero SUI). Needs @mysten/sui v2 to deserialize the sponsor's `ValidDuring`
+// expiration (v1 throws "Unknown value 2 for enum TransactionExpiration"). Set false to fall back to
+// faucet self-pay. External (browser-extension) wallets always self-pay regardless.
+const SPONSORED_GAS_ENABLED: boolean = true;
 
 // Submit a transaction, paying gas the right way for the connected wallet. With sponsoring on,
 // zkLogin/Enoki accounts route through the gas station (zero SUI); otherwise (and for external

@@ -6,7 +6,7 @@ import {
   WalletProvider,
   createNetworkConfig,
 } from "@mysten/dapp-kit";
-import { getFullnodeUrl } from "@mysten/sui/client";
+import { getJsonRpcFullnodeUrl as getFullnodeUrl } from "@mysten/sui/jsonRpc";
 import "@fontsource-variable/geist/index.css";
 import "@mysten/dapp-kit/dist/index.css";
 import App from "./App.tsx";
@@ -15,7 +15,7 @@ import "./index.css";
 import { registerVoltrayEnokiWallets } from "./lib/enoki";
 
 const { networkConfig } = createNetworkConfig({
-  testnet: { url: getFullnodeUrl("testnet") },
+  testnet: { url: getFullnodeUrl("testnet"), network: "testnet" },
 });
 const queryClient = new QueryClient();
 

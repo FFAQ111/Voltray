@@ -1,7 +1,7 @@
 // Domain helpers over the Voltray package: event-log queries, object reads, and
 // transaction builders. Aggregates are derived here by scanning Sui events
 // (see docs/ARCHITECTURE.md §5) — the contract stores no accumulating state.
-import type { SuiClient } from "@mysten/sui/client";
+import type { SuiJsonRpcClient as SuiClient } from "@mysten/sui/jsonRpc";
 import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
 import { fromHex } from "@mysten/sui/utils";
 import { CLOCK_ID, DEMO_CHARGER_PUBKEY, USDC_TYPE, fq } from "./config";

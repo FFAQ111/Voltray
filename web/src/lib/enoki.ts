@@ -1,4 +1,7 @@
-import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
+import {
+  SuiJsonRpcClient as SuiClient,
+  getJsonRpcFullnodeUrl as getFullnodeUrl,
+} from "@mysten/sui/jsonRpc";
 import { registerEnokiWallets } from "@mysten/enoki";
 
 // The Enoki public API key and Google OAuth client ID are public, client-side identifiers
@@ -12,7 +15,10 @@ const GOOGLE_CLIENT_ID =
   "514360842030-vj9ikm77va7i15d1bklf3oj0o5j8ea6p.apps.googleusercontent.com";
 
 export function registerVoltrayEnokiWallets() {
-  const client = new SuiClient({ url: getFullnodeUrl("testnet") });
+  const client = new SuiClient({
+    url: getFullnodeUrl("testnet"),
+    network: "testnet",
+  });
   registerEnokiWallets({
     apiKey: ENOKI_API_KEY,
     providers: {
