@@ -96,6 +96,10 @@ pnpm dev
 
 The frontend reads the deployed Package ID from `web/src/lib/config.ts`. If you publish your own copy of the contract, update the constant there (and the mirror in `oracle/src/config.ts`).
 
+### Development environment (optional)
+
+The repo ships a [dev container](.devcontainer/) with the whole toolchain preinstalled: Node 24, pnpm 11, the Sui CLI (testnet), and flyctl. With Docker and the VS Code Dev Containers extension installed, open the folder and run **Dev Containers: Reopen in Container**. Dependencies are installed on first start, and a fresh testnet address is created in a Docker volume (`sui client faucet` funds it). Host Sui keys are never mounted into the container.
+
 ## Demo
 
 Watch the demo: https://youtu.be/KE_Q6yOQJ_A

@@ -1,0 +1,36 @@
+// Voltray dev container. Open with VS Code: "Dev Containers: Reopen in Container".
+// See README "Development environment".
+{
+  "name": "Voltray",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "node",
+  "features": {
+    // Claude Code CLI + VS Code extension. Unused unless you sign in.
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["mysten.move"]
+    }
+  },
+  // Vite dev server (web/).
+  "forwardPorts": [5173],
+  "mounts": [
+    // Sui CLI config + keystore. Per-project volume: the dev address survives rebuilds,
+    // and no host keystore is ever mounted into the container.
+    "source=voltray-sui-config,target=/home/node/.sui,type=volume",
+    // Claude Code state (login, settings, memory), shared by every dev container on this machine.
+    "source=claude-code-config,target=/claude-config,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/claude-config",
+    // Keep the pnpm store out of the workspace; by default pnpm would create
+    // .pnpm-store/ in the repo root because the workspace is a separate mount.
+    "pnpm_config_store_dir": "/home/node/.pnpm-store"
+  },
+  // Install JS deps, then make sure a Sui client config exists
+  // (first run creates a fresh testnet address in the voltray-sui-config volume).
+  // CI=true: this runs without a TTY, and pnpm refuses to replace a node_modules/ that was
+  // installed outside the container (different store) unless it can prompt or CI is set.
+  "postCreateCommand": "CI=true pnpm --dir web install && CI=true pnpm --dir oracle install && sui client -y active-address"
+}
