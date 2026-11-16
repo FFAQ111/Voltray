@@ -19,6 +19,8 @@
     // Sui CLI config + keystore. Per-project volume: the dev address survives rebuilds,
     // and no host keystore is ever mounted into the container.
     "source=voltray-sui-config,target=/home/node/.sui,type=volume",
+    // flyctl login token. Per-project volume so `fly auth login` survives rebuilds.
+    "source=voltray-fly-config,target=/home/node/.fly,type=volume",
     // Claude Code state (login, settings, memory), shared by every dev container on this machine.
     "source=claude-code-config,target=/claude-config,type=volume"
   ],

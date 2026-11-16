@@ -16,5 +16,5 @@ RUN curl -fsSL https://fly.io/install.sh | FLYCTL_INSTALL=/usr/local sh
 
 # Mount points for the named volumes in devcontainer.json. A new volume copies the ownership of
 # the directory it is first mounted on, so these must exist and belong to the dev user.
-RUN mkdir -p /home/node/.sui /claude-config \
-    && chown node:node /home/node/.sui /claude-config
+RUN mkdir -p /home/node/.sui /home/node/.fly /claude-config \
+    && chown node:node /home/node/.sui /home/node/.fly /claude-config
